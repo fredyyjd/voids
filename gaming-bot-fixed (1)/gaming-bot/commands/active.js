@@ -49,11 +49,8 @@ module.exports = {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
       try {
-        const rec = await startCheck(interaction.client, interaction.channel, interaction.user.id);
-        return interaction.editReply(
-          `✅ Activity check started. It ends <t:${Math.floor(rec.endsAt / 1000)}:R> ` +
-            `(warnings go to <#${WARN_CHANNEL_ID}>) and the message is deleted <t:${Math.floor(rec.deleteAt / 1000)}:R>.`
-        );
+        await startCheck(interaction.client, interaction.channel, interaction.user.id);
+        return interaction.editReply('✅ Sent successfully.');
       } catch (err) {
         console.error('[active] failed to start check:', err);
         return interaction.editReply("❌ Couldn't start the check. Make sure I can send messages and add reactions here.");
