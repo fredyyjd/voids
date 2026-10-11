@@ -11,7 +11,7 @@ const { Routes } = require('discord.js');
    SETTINGS
 ========================================================= */
 
-const WARN_CHANNEL_ID = '1539111500713566248';
+const WARN_CHANNEL_ID = '1558783436565782598';
 
 // role to ping -> emoji the bot reacts with (and shows next to the role)
 const ROLES = [
