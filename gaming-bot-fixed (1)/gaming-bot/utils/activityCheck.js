@@ -20,6 +20,14 @@ const ROLES = [
   { id: '1547853856640344084', emoji: '\u26AA', shown: '\u26AA\uFE0F' },        // ⚪️
 ];
 
+// people with any of these roles don't need to react
+const EXEMPT_ROLE_IDS = [
+  '1546334249114796033',
+  '1552922007371391016',
+  '1492832584835797002',
+  '1540606063911510086',
+];
+
 const COLLECT_MS = 5 * 60 * 60 * 1000; // reactions count for 5 hours
 const DELETE_MS = 6 * 60 * 60 * 1000;  // check message deleted at 6 hours
 
@@ -212,7 +220,10 @@ async function finalizeCheck(client, messageId) {
 
     const roleIds = ROLES.map((r) => r.id);
     const expected = members.filter(
-      (m) => !m.user.bot && roleIds.some((id) => m.roles.cache.has(id))
+      (m) =>
+        !m.user.bot &&
+        roleIds.some((id) => m.roles.cache.has(id)) &&
+        !EXEMPT_ROLE_IDS.some((id) => m.roles.cache.has(id))
     );
 
     const reacted = new Set(rec.reacted);
