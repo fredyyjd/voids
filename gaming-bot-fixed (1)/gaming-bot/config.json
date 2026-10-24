@@ -242,7 +242,7 @@
   ],
   "reactionRoles": {
     "title": "",
-    "description": "# 📍reaction roles📍\n## select urs now\n**💸spawner price ping💀**\n> get pinged when we update are spawner prices\n**🎉quick drop🎉**\n> Get pinged for quick drops\n**🎁giveaway ping🎁**\n> get pinged for giveaways",
+    "description": "# 📍reaction roles📍\n## select urs now\n**💸spawner price ping💀**\n> get pinged when we update are spawner prices\n**🎉quick drop🎉**\n> Get pinged for quick drops\n**🎁giveaway ping🎁**\n> get pinged for giveaways\n**📺stream ping📺**\n> get pinged for streams\n**💰lootdrop ping💰**\n> get pinged for lootdrops\n**🤝partnership ping🤝**\n> get pinged for partnerships\n**💬chat revive ping💬**\n> get pinged to revive chat",
     "color": "#2b2d31",
     "roles": [
       {
@@ -259,6 +259,26 @@
         "roleId": "1526927287486779566",
         "label": "Quickdrop Pings",
         "emoji": "🎁"
+      },
+      {
+        "roleId": "1559105095289929758",
+        "label": "Stream Ping",
+        "emoji": "📺"
+      },
+      {
+        "roleId": "1561287082670948463",
+        "label": "Lootdrop Ping",
+        "emoji": "💰"
+      },
+      {
+        "roleId": "1536027286724157491",
+        "label": "Partnership Ping",
+        "emoji": "🤝"
+      },
+      {
+        "roleId": "1529044305824448683",
+        "label": "Chat Revive Ping",
+        "emoji": "💬"
       }
     ]
   },
