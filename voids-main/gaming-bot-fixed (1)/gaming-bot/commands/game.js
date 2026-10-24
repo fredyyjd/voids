@@ -27,7 +27,7 @@ for (const [name, description] of GAMES) {
       .setName(name)
       .setDescription(description)
       .addStringOption((opt) =>
-        opt.setName('prize').setDescription('Prize for the winner, e.g. 5m (max perms only)').setMaxLength(100).setRequired(false)
+        opt.setName('prize').setDescription('Prize for the winner, e.g. 5m (staff only)').setMaxLength(100).setRequired(false)
       )
   );
 }
