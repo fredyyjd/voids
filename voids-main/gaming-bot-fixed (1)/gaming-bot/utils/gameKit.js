@@ -1,6 +1,13 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { box, priv } = require('./box');
 const config = require('../config.json');
+const {
+  loadGiveaways,
+  saveGiveaways,
+  buildClaimRow,
+  rememberClaimMessage,
+} = require('./giveawayManager');
+const { addGiveawayPrize } = require('./giveawayTotal');
 
 /* =========================================================
    Shared helpers for the mini games
@@ -41,6 +48,9 @@ async function enforceGamesChannel(message) {
   if (!id || message.channelId !== id) return false;
   if (typingActive(id)) return false;
 
+  // max perms can always type here
+  if (message.member?.permissions?.has('Administrator')) return false;
+
   if (
     config.gamesChannelStaffBypass &&
     message.member?.permissions?.has('ManageMessages')
@@ -64,9 +74,49 @@ function say(channel, parts, { rows = [], users = [] } = {}) {
 
 const edit = (msg, parts, rows = []) => msg.edit(box(parts, { rows })).catch(() => {});
 
-function winnerBox(channel, title, ids) {
+async function winnerBox(channel, title, ids) {
   const list = ids.map(nm).join(' ');
-  return say(channel, [`## 🏆 ${title}`, list || 'nobody'], { users: ids });
+  await say(channel, [`## 🏆 ${title}`, list || 'nobody'], { users: ids });
+  await awardPrize(channel, ids);
+}
+
+// If the game has a prize: record it like a giveaway (so the existing
+// Claim Prize button + ticket flow works), add it to the total given away,
+// and send the claim button.
+async function awardPrize(channel, ids) {
+  const entry = active.get(channel.id);
+  if (!entry?.prize || !ids.length || entry.awarded) return;
+  entry.awarded = true;
+
+  const key = `game_${uid()}${uid()}`;
+  const giveaways = loadGiveaways();
+
+  giveaways[key] = {
+    game: true,
+    guildId: channel.guildId,
+    channelId: channel.id,
+    prize: entry.prize,
+    hostId: entry.hostId,
+    winners: ids,
+    winnerCount: ids.length,
+    claimed: [],
+    entrants: ids,
+    ended: true,
+    endedAt: Date.now(),
+  };
+  saveGiveaways(giveaways);
+
+  const claimMessage = await channel.send({
+    content: `Congratulations ${ids.map(nm).join(', ')}! You won **${entry.prize}**!`,
+    components: [buildClaimRow(key, giveaways[key])],
+    allowedMentions: { parse: [], users: ids },
+  });
+  rememberClaimMessage(key, claimMessage);
+
+  // one prize per winner
+  for (let i = 0; i < ids.length; i++) {
+    addGiveawayPrize(channel.client, channel.guildId, entry.prize);
+  }
 }
 
 /* ---------- running a game ---------- */
@@ -83,9 +133,16 @@ async function run(interaction, name, typing, fn) {
     return interaction.reply(priv(box('❌ A game is already running in this channel.')));
   }
 
-  active.set(interaction.channelId, { name, typing });
+  const prize = interaction.options?.getString?.('prize')?.trim() || null;
+
+  if (prize && !interaction.memberPermissions?.has('Administrator')) {
+    return interaction.reply(priv(box('❌ Only max perms can add a prize.')));
+  }
+
+  active.set(interaction.channelId, { name, typing, prize, hostId: interaction.user.id });
 
   try {
+    if (prize) await say(interaction.channel, `🎁 prize: **${prize}**`);
     await fn();
   } catch (err) {
     console.error(`[games] ${name} crashed:`, err);
@@ -285,6 +342,7 @@ module.exports = {
   say,
   edit,
   winnerBox,
+  awardPrize,
   run,
   collectMessages,
   lobby,
