@@ -54,7 +54,7 @@ module.exports = {
     .addSubcommand((s) =>
       s
         .setName('total')
-        .setDescription('Create the "Total Given" voice channel that tracks everything given away')
+        .setDescription('Make the total given channel')
     ),
 
   async execute(interaction) {
@@ -75,8 +75,8 @@ module.exports = {
         return done(
           interaction,
           created
-            ? `Created ${channel}. It updates every time a giveaway is made.`
-            : `The total channel already exists: ${channel}.`
+            ? `Created ${channel}.`
+            : `Already exists: ${channel}.`
         );
       } catch (err) {
         console.error('[gw] could not create total channel:', err);
