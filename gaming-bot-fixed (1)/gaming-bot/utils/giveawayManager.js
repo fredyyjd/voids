@@ -6,6 +6,12 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require('discord.js');
+const { COLOR } = require('./theme');
+const { halfOfPrize } = require('./giveawayTotal');
+
+// How long the two Split or Steal players have to pick before the
+// one who didn't pick forfeits.
+const SPLIT_STEAL_TIMEOUT_MS = 30 * 60 * 1000;
 
 const DATA_DIR = process.env.DATA_DIR || '/app/data';
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -49,91 +55,173 @@ function saveGiveaways(data) {
    DURATION HELPERS
 ========================================================= */
 
+// Accepts "30s", "10m", "2h", "1d", "1w" and the long forms the giveaway
+// form suggests: "10 minutes", "1 hour", "2 days", "1h 30m", "1d12h".
 function parseDuration(str) {
-  const match = str.toLowerCase().trim().match(/^(\d+)\s*(s|m|h|d|w)$/);
-  if (!match) return null;
+  const cleaned = String(str || '')
+    .toLowerCase()
+    .replace(/\band\b|,/g, ' ')
+    .trim();
 
-  const num = parseInt(match[1], 10);
-  const unit = match[2];
-
-  const multipliers = {
-    s: 1000,
-    m: 60 * 1000,
-    h: 60 * 60 * 1000,
-    d: 24 * 60 * 60 * 1000,
-    w: 7 * 24 * 60 * 60 * 1000,
+  const unitMs = {
+    s: 1000, sec: 1000, secs: 1000, second: 1000, seconds: 1000,
+    m: 60 * 1000, min: 60 * 1000, mins: 60 * 1000, minute: 60 * 1000, minutes: 60 * 1000,
+    h: 3600 * 1000, hr: 3600 * 1000, hrs: 3600 * 1000, hour: 3600 * 1000, hours: 3600 * 1000,
+    d: 86400 * 1000, day: 86400 * 1000, days: 86400 * 1000,
+    w: 7 * 86400 * 1000, wk: 7 * 86400 * 1000, wks: 7 * 86400 * 1000, week: 7 * 86400 * 1000, weeks: 7 * 86400 * 1000,
   };
 
-  return num * multipliers[unit];
-}
+  const matches = [...cleaned.matchAll(/(\d+(?:\.\d+)?)\s*([a-z]+)/g)];
+  if (!matches.length) return null;
 
-// Discord's <t:...:R> tag only updates in coarse steps (minutes at a time
-// past the first minute), so on short giveaways it can look frozen. This
-// builds a literal "Xm Ys" string from the actual remaining time, so it
-// genuinely counts down every time we refresh the embed.
-function formatTimeLeft(ms) {
-  if (ms <= 0) return '0s';
+  // Anything left over once the matches are removed means junk in the input.
+  if (cleaned.replace(/(\d+(?:\.\d+)?)\s*([a-z]+)/g, '').trim() !== '') return null;
 
-  const totalSeconds = Math.floor(ms / 1000);
-  const days = Math.floor(totalSeconds / 86400);
-  const hours = Math.floor((totalSeconds % 86400) / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+  let total = 0;
+  for (const [, num, unit] of matches) {
+    if (!unitMs[unit]) return null;
+    total += parseFloat(num) * unitMs[unit];
+  }
 
-  const parts = [];
-  if (days) parts.push(`${days}d`);
-  if (hours) parts.push(`${hours}h`);
-  if (minutes) parts.push(`${minutes}m`);
-  if (seconds || parts.length === 0) parts.push(`${seconds}s`);
-
-  return parts.slice(0, 2).join(' ');
+  total = Math.round(total);
+  return total > 0 ? total : null;
 }
 
 
 /* =========================================================
    EMBED / BUTTONS
+
+   Layout:
+     author   🎉 Giveaway
+     ## prize
+     description
+     > Ends / Entries / Winners
+     footer   Hosted by <name>
 ========================================================= */
+
+const isSplitSteal = (giveaway) => giveaway.type === 'splitsteal';
+
+function footerFor(giveaway) {
+  if (!giveaway.hostName) return null;
+
+  const footer = { text: `Hosted by ${giveaway.hostName}` };
+  if (giveaway.hostAvatar) footer.iconURL = giveaway.hostAvatar;
+  return footer;
+}
+
+const choiceLabel = (choice) =>
+  choice === 'split' ? 'Split' : choice === 'steal' ? 'Steal' : 'No pick';
+
+// The sentence that says how a Split or Steal turned out.
+function describeOutcome(giveaway) {
+  const ss = giveaway.splitSteal || {};
+  const [a, b] = ss.players || [];
+  const prize = giveaway.prize;
+  const winner = (giveaway.winners || [])[0];
+  const other = (ss.players || []).find((id) => id !== winner);
+
+  switch (ss.outcome) {
+    case 'split':
+      return `🤝 <@${a}> and <@${b}> both picked **Split**. They each win **${halfOfPrize(prize)}**!`;
+    case 'steal':
+      return `😈 <@${winner}> picked **Steal** and takes the full **${prize}**! <@${other}> picked **Split** and gets nothing.`;
+    case 'bothsteal':
+      return `💥 <@${a}> and <@${b}> both picked **Steal**. Nobody wins anything!`;
+    case 'forfeit':
+      return `⏰ <@${other}> didn't pick in time, so <@${winner}> wins the full **${prize}**!`;
+    case 'noshow':
+      return '⏰ Neither player picked in time. Nobody wins.';
+    case 'notenough':
+      return 'Not enough entrants. Split or Steal needs at least 2 players.';
+    default:
+      return '';
+  }
+}
 
 function buildGiveawayEmbed(giveaway) {
   const ended = !!giveaway.ended;
-  const hostedByLine = giveaway.hostId ? `**Hosted by:** <@${giveaway.hostId}>\n` : '';
+  const splitSteal = isSplitSteal(giveaway);
+  const entries = (giveaway.entrants || []).length;
+
+  const lines = [`## ${giveaway.prize}`];
+  if (giveaway.description) lines.push(giveaway.description);
+
+  if (!ended) {
+    const ts = Math.floor(giveaway.endTimestamp / 1000);
+
+    lines.push(
+      '',
+      `> **Ends:** <t:${ts}:R> (<t:${ts}:f>)`,
+      splitSteal
+        ? `> **Entries:** ${entries}   **Players:** 2`
+        : `> **Entries:** ${entries}   **Winners:** ${giveaway.winnerCount}`,
+      '',
+      splitSteal
+        ? 'Press the button to join! 2 people get picked to play **Split or Steal**.'
+        : 'Press the button to join the giveaway!'
+    );
+  } else {
+    const ts = Math.floor((giveaway.endedAt || giveaway.endTimestamp) / 1000);
+    lines.push('', `> **Ended:** <t:${ts}:R> (<t:${ts}:f>)`);
+
+    if (splitSteal) {
+      const ss = giveaway.splitSteal || { players: [] };
+      const [a, b] = ss.players;
+
+      if (!a) {
+        lines.push(`> **Entries:** ${entries}   **Players:** None`, '', describeOutcome(giveaway));
+      } else {
+        lines.push(`> **Entries:** ${entries}   **Players:** <@${a}> & <@${b}>`);
+
+        if (!ss.resolved) {
+          lines.push(
+            '',
+            `⏳ Waiting for both players to pick **Split** or **Steal** (<t:${Math.floor(ss.deadline / 1000)}:R>).`
+          );
+        } else {
+          lines.push(
+            `> <@${a}> picked **${choiceLabel(ss.choices[a])}**`,
+            `> <@${b}> picked **${choiceLabel(ss.choices[b])}**`,
+            '',
+            describeOutcome(giveaway)
+          );
+        }
+      }
+    } else {
+      const winners =
+        giveaway.winners && giveaway.winners.length
+          ? giveaway.winners.map((id) => `<@${id}>`).join(', ')
+          : 'No valid entrants';
+
+      lines.push(`> **Entries:** ${entries}   **Winners:** ${winners}`);
+    }
+  }
 
   const embed = new EmbedBuilder()
-    .setTitle(`${giveaway.prize}`)
-    .setColor(ended ? '#2b2d31' : '#2b2d31')
-    .setTimestamp(giveaway.endTimestamp);
+    .setColor(COLOR)
+    .setAuthor({
+      name: splitSteal
+        ? ended ? '🤝 Split or Steal Ended' : '🤝 Split or Steal'
+        : ended ? '🎉 Giveaway Ended' : '🎉 Giveaway',
+    })
+    .setDescription(lines.join('\n'));
 
-  if (ended) {
-    embed.setDescription(
-      giveaway.winners && giveaway.winners.length > 0
-        ? `**Winner(s):** ${giveaway.winners.map((id) => `<@${id}>`).join(', ')}\n\n${hostedByLine}`
-        : `No valid entrants — no winner could be chosen.\n\n${hostedByLine}`
-    );
-    embed.setFooter({ text: 'Giveaway ended' });
-  } else {
-    const timeLeft = formatTimeLeft(giveaway.endTimestamp - Date.now());
-
-    embed.setDescription(
-      'Click below to enter!\n\n' +
-      `**Winners:** ${giveaway.winnerCount}\n` +
-      hostedByLine +
-      `**Ends:** \`${timeLeft}\`\n\n` +
-      `<t:${Math.floor(giveaway.endTimestamp / 1000)}:F>`
-    );
-    embed.setFooter({ text: 'Good luck!' });
-  }
+  const footer = footerFor(giveaway);
+  if (footer) embed.setFooter(footer);
 
   return embed;
 }
 
 function buildJoinRow(entrantCount = 0, disabled = false) {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('giveaway_join')
-      .setLabel(`Join Giveaway (${entrantCount})`)
-      .setStyle(ButtonStyle.Primary)
-      .setDisabled(disabled)
-  );
+  const button = new ButtonBuilder().setCustomId('giveaway_join');
+
+  if (disabled) {
+    button.setLabel('Giveaway Ended').setStyle(ButtonStyle.Secondary).setDisabled(true);
+  } else {
+    button.setLabel(`Join Giveaway (${entrantCount})`).setStyle(ButtonStyle.Primary);
+  }
+
+  return new ActionRowBuilder().addComponents(button);
 }
 
 // Shown ephemerally to a user right after they join, so they have a quick
@@ -145,6 +233,72 @@ function buildLeaveRow(messageId) {
       .setLabel('Leave Giveaway')
       .setStyle(ButtonStyle.Danger)
   );
+}
+
+// The Claim Prize button. Once every winner has claimed it goes grey and
+// says "Claimed".
+function buildClaimRow(messageId, giveaway = {}) {
+  const winners = giveaway.winners || [];
+  const claimed = (giveaway.claimed || []).filter((id) => winners.includes(id));
+  const allClaimed = winners.length > 0 && claimed.length >= winners.length;
+
+  const button = new ButtonBuilder().setCustomId(`giveaway_prize_claim_${messageId}`);
+
+  if (allClaimed) {
+    button.setLabel('Claimed').setEmoji('✅').setStyle(ButtonStyle.Secondary).setDisabled(true);
+  } else {
+    const progress = winners.length > 1 && claimed.length ? ` (${claimed.length}/${winners.length})` : '';
+    button.setLabel(`🎁 Claim Prize${progress}`).setStyle(ButtonStyle.Success);
+  }
+
+  return new ActionRowBuilder().addComponents(button);
+}
+
+// Fallback for players whose DMs are closed.
+function buildOpenChoiceRow(messageId) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`gwss_open_${messageId}`)
+      .setLabel('Make your choice')
+      .setStyle(ButtonStyle.Primary)
+  );
+}
+
+
+/* =========================================================
+   SPLIT OR STEAL - the choice prompt (sent by DM)
+========================================================= */
+
+function buildChoicePayload(messageId, giveaway, playerId) {
+  const ss = giveaway.splitSteal;
+  const opponent = ss.players.find((id) => id !== playerId);
+
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setTitle('Split or Steal!')
+    .setDescription(
+      [
+        `You were picked for **${giveaway.prize}** against <@${opponent}>.`,
+        '',
+        'Pick **Split** to split the prize or **Steal** to steal the full prize.',
+        'If you both pick **Steal**, no one gets anything.',
+        '',
+        `Pick before <t:${Math.floor(ss.deadline / 1000)}:R> or you forfeit.`,
+      ].join('\n')
+    );
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`gwss_steal_${messageId}`)
+      .setLabel('Steal')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`gwss_split_${messageId}`)
+      .setLabel('Split')
+      .setStyle(ButtonStyle.Success)
+  );
+
+  return { embeds: [embed], components: [row] };
 }
 
 
@@ -218,6 +372,36 @@ function startCountdownRefresh(client, messageId) {
    END / SCHEDULE / REARM
 ========================================================= */
 
+// Remembers where the Claim Prize message is so its button can be
+// turned grey later.
+function rememberClaimMessage(messageId, claimMessage) {
+  const giveaways = loadGiveaways();
+  if (!giveaways[messageId] || !claimMessage) return;
+
+  giveaways[messageId].claimMessageId = claimMessage.id;
+  giveaways[messageId].claimChannelId = claimMessage.channelId;
+  saveGiveaways(giveaways);
+}
+
+// Re-draws the Claim Prize button (grey "Claimed" once everyone has claimed).
+async function refreshClaimButton(client, messageId) {
+  const giveaway = loadGiveaways()[messageId];
+  if (!giveaway || !giveaway.claimMessageId) return;
+
+  const channel = await client.channels
+    .fetch(giveaway.claimChannelId || giveaway.channelId)
+    .catch(() => null);
+  const message = channel
+    ? await channel.messages.fetch(giveaway.claimMessageId).catch(() => null)
+    : null;
+
+  if (message) {
+    await message
+      .edit({ components: [buildClaimRow(messageId, giveaway)] })
+      .catch((err) => console.error('Failed to update claim button:', err.message));
+  }
+}
+
 async function endGiveaway(client, messageId) {
   const giveaways = loadGiveaways();
   const giveaway = giveaways[messageId];
@@ -225,38 +409,186 @@ async function endGiveaway(client, messageId) {
 
   stopCountdownRefresh(messageId);
 
+  const entrants = Array.isArray(giveaway.entrants) ? giveaway.entrants : [];
+  const splitSteal = isSplitSteal(giveaway);
+
+  // Everything that decides the result happens here, in one synchronous
+  // step, so nobody can join (or the giveaway end twice) while we're
+  // waiting on Discord below.
+  giveaway.ended = true;
+  giveaway.endedAt = Date.now();
+
+  if (splitSteal) {
+    const players = entrants.length >= 2 ? pickWinners(entrants, 2) : [];
+
+    giveaway.winners = [];
+    giveaway.splitSteal = players.length
+      ? { players, choices: {}, deadline: Date.now() + SPLIT_STEAL_TIMEOUT_MS, resolved: false }
+      : { players: [], choices: {}, resolved: true, outcome: 'notenough' };
+  } else {
+    giveaway.winners = pickWinners(entrants, giveaway.winnerCount);
+  }
+
+  giveaways[messageId] = giveaway;
+  saveGiveaways(giveaways);
+
   try {
     const channel = await client.channels.fetch(giveaway.channelId);
     const message = await channel.messages.fetch(messageId);
 
-    const winners = pickWinners(giveaway.entrants || [], giveaway.winnerCount);
-    giveaway.ended = true;
-    giveaway.winners = winners;
-    giveaways[messageId] = giveaway;
-    saveGiveaways(giveaways);
-
     await message.edit({
       embeds: [buildGiveawayEmbed(giveaway)],
-      components: [buildJoinRow((giveaway.entrants || []).length, true)],
+      components: [buildJoinRow(entrants.length, true)],
     });
 
-    if (winners.length > 0) {
-      const claimRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`giveaway_prize_claim_${messageId}`)
-          .setLabel('🎁 Claim Prize')
-          .setStyle(ButtonStyle.Success)
-      );
+    if (splitSteal) {
+      await startSplitSteal(client, channel, message, giveaway);
+      return;
+    }
 
-      await channel.send({
+    const winners = giveaway.winners;
+
+    if (winners.length > 0) {
+      const claimMessage = await channel.send({
         content: `Congratulations ${winners.map((id) => `<@${id}>`).join(', ')}! You won **${giveaway.prize}**!`,
-        components: [claimRow],
+        components: [buildClaimRow(messageId, giveaway)],
       });
+
+      rememberClaimMessage(messageId, claimMessage);
     } else {
       await channel.send({ content: `No one entered the giveaway for **${giveaway.prize}**.` });
     }
   } catch (err) {
     console.error('Failed to end giveaway:', err);
+  }
+}
+
+
+/* =========================================================
+   SPLIT OR STEAL
+
+   When the giveaway ends, 2 entrants are picked. Each gets a DM
+   with Steal / Split buttons.
+     both Split         -> they each get half
+     one Steal, one Split -> the stealer gets the full prize
+     both Steal         -> nobody gets anything
+   If one player doesn't pick in time they forfeit.
+========================================================= */
+
+async function sendChoiceDm(client, messageId, giveaway, playerId) {
+  try {
+    const user = await client.users.fetch(playerId);
+    await user.send(buildChoicePayload(messageId, giveaway, playerId));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function startSplitSteal(client, channel, message, giveaway) {
+  const messageId = message.id;
+  const ss = giveaway.splitSteal;
+
+  if (!ss.players.length) {
+    await channel.send({
+      content: `Not enough people entered **${giveaway.prize}**. Split or Steal needs at least 2 entrants.`,
+    });
+    return;
+  }
+
+  const failed = [];
+  for (const playerId of ss.players) {
+    const sent = await sendChoiceDm(client, messageId, giveaway, playerId);
+    if (!sent) failed.push(playerId);
+  }
+
+  await channel.send({
+    content:
+      `🤝 ${ss.players.map((id) => `<@${id}>`).join(' and ')}, you were picked for **Split or Steal** (**${giveaway.prize}**)!\n` +
+      (failed.length
+        ? `I couldn't DM ${failed.map((id) => `<@${id}>`).join(' and ')}, press the button below to make your choice.`
+        : 'Check your DMs and pick **Split** or **Steal**.') +
+      `\nYou have until <t:${Math.floor(ss.deadline / 1000)}:R>.`,
+    allowedMentions: { users: ss.players },
+    components: failed.length ? [buildOpenChoiceRow(messageId)] : [],
+  });
+
+  scheduleTimeout(() => resolveSplitSteal(client, messageId), ss.deadline - Date.now());
+}
+
+async function resolveSplitSteal(client, messageId) {
+  const giveaways = loadGiveaways();
+  const giveaway = giveaways[messageId];
+  const ss = giveaway && giveaway.splitSteal;
+  if (!giveaway || !ss || ss.resolved) return;
+
+  const [a, b] = ss.players;
+  const choiceA = ss.choices[a];
+  const choiceB = ss.choices[b];
+
+  let winners = [];
+  let outcome;
+
+  if (choiceA && choiceB) {
+    if (choiceA === 'split' && choiceB === 'split') {
+      outcome = 'split';
+      winners = [a, b];
+    } else if (choiceA === 'steal' && choiceB === 'steal') {
+      outcome = 'bothsteal';
+    } else {
+      outcome = 'steal';
+      winners = [choiceA === 'steal' ? a : b];
+    }
+  } else if (choiceA || choiceB) {
+    outcome = 'forfeit';
+    winners = [choiceA ? a : b];
+  } else {
+    outcome = 'noshow';
+  }
+
+  ss.resolved = true;
+  ss.outcome = outcome;
+  giveaway.winners = winners;
+  giveaway.payouts = {};
+  for (const id of winners) {
+    giveaway.payouts[id] = outcome === 'split' ? halfOfPrize(giveaway.prize) : giveaway.prize;
+  }
+  saveGiveaways(giveaways);
+
+  try {
+    const channel = await client.channels.fetch(giveaway.channelId);
+    const message = await channel.messages.fetch(messageId).catch(() => null);
+
+    if (message) {
+      await message.edit({
+        embeds: [buildGiveawayEmbed(giveaway)],
+        components: [buildJoinRow((giveaway.entrants || []).length, true)],
+      });
+    }
+
+    const payload = {
+      content: describeOutcome(giveaway),
+      allowedMentions: { users: ss.players },
+      reply: message ? { messageReference: message.id, failIfNotExists: false } : undefined,
+    };
+    if (winners.length) payload.components = [buildClaimRow(messageId, giveaway)];
+
+    const resultMessage = await channel.send(payload);
+    if (winners.length) rememberClaimMessage(messageId, resultMessage);
+
+    for (const playerId of ss.players) {
+      const user = await client.users.fetch(playerId).catch(() => null);
+      if (!user) continue;
+
+      user
+        .send(
+          `${describeOutcome(giveaway)}` +
+            (winners.includes(playerId) ? `\nPress **Claim Prize** in <#${giveaway.channelId}> to open a ticket.` : '')
+        )
+        .catch(() => {});
+    }
+  } catch (err) {
+    console.error('Failed to finish split or steal:', err);
   }
 }
 
@@ -270,7 +602,14 @@ function rearmActiveGiveaways(client) {
   const now = Date.now();
 
   for (const [messageId, giveaway] of Object.entries(giveaways)) {
-    if (giveaway.ended) continue;
+    // A Split or Steal that was waiting on picks when the bot went down.
+    if (giveaway.ended) {
+      const ss = giveaway.splitSteal;
+      if (ss && !ss.resolved) {
+        scheduleTimeout(() => resolveSplitSteal(client, messageId), Math.max(0, ss.deadline - now));
+      }
+      continue;
+    }
 
     const msLeft = giveaway.endTimestamp - now;
     if (msLeft <= 0) {
@@ -293,8 +632,14 @@ module.exports = {
   buildGiveawayEmbed,
   buildJoinRow,
   buildLeaveRow,
+  buildClaimRow,
+  buildChoicePayload,
+  describeOutcome,
   pickWinners,
   endGiveaway,
+  resolveSplitSteal,
+  refreshClaimButton,
+  rememberClaimMessage,
   scheduleGiveaway,
   rearmActiveGiveaways,
 };
