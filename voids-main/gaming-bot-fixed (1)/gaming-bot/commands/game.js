@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const g = require('../utils/games');
+const { stopGame } = require('../utils/gameKit');
 
 const GAMES = [
   ['last-typer', 'Keep sending messages. Miss the timer and you are out', g.lastTyper],
@@ -32,11 +33,16 @@ for (const [name, description] of GAMES) {
   );
 }
 
+data.addSubcommand((sub) =>
+  sub.setName('stop').setDescription('Stop the game running in this channel')
+);
+
 module.exports = {
   data,
 
   async execute(interaction) {
     const name = interaction.options.getSubcommand();
+    if (name === 'stop') return stopGame(interaction);
     const game = GAMES.find(([n]) => n === name);
     if (!game) return;
     await game[2](interaction);
