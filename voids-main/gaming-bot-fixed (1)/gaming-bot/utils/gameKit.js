@@ -1,6 +1,7 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { box, priv } = require('./box');
 const config = require('../config.json');
+const { isMod } = require('./permissions');
 const {
   loadGiveaways,
   saveGiveaways,
@@ -119,6 +120,41 @@ async function awardPrize(channel, ids) {
   }
 }
 
+/* ---------- lock countdown ---------- */
+
+const LOCK_SECONDS = 7;
+
+// Locks the channel for a few seconds so nobody can pre-type, then unlocks
+// it so everybody starts typing at the same moment.
+async function lockFor(channel, seconds = LOCK_SECONDS) {
+  const everyone = channel.guild.roles.everyone;
+  const prev = channel.permissionOverwrites.cache.get(everyone.id);
+  const original = prev?.deny?.has('SendMessages') ? false : prev?.allow?.has('SendMessages') ? true : null;
+  const opens = Math.floor(Date.now() / 1000) + seconds;
+
+  const note = await say(channel, `🔒 channel locked · opens <t:${opens}:R>`).catch(() => null);
+
+  const locked = await channel.permissionOverwrites
+    .edit(everyone, { SendMessages: false }, { reason: 'typing game starting' })
+    .then(() => true)
+    .catch(() => false);
+
+  if (!locked && note) await edit(note, 'get ready · starting soon');
+
+  try {
+    await sleep(seconds * 1000);
+  } finally {
+    if (locked) {
+      await channel.permissionOverwrites
+        .edit(everyone, { SendMessages: original }, { reason: 'typing game started' })
+        .catch((err) => console.error('[games] could not unlock channel:', err.message));
+    }
+  }
+
+  if (note) await edit(note, '🔓 go!');
+  return locked;
+}
+
 /* ---------- running a game ---------- */
 
 // Checks channel rules, registers the game, always cleans up.
@@ -135,8 +171,14 @@ async function run(interaction, name, typing, fn) {
 
   const prize = interaction.options?.getString?.('prize')?.trim() || null;
 
-  if (prize && !interaction.memberPermissions?.has('Administrator')) {
-    return interaction.reply(priv(box('❌ Only max perms can add a prize.')));
+  // same people who can run /giveaway start, plus max perms and Manage Server
+  const canPrize =
+    isMod(interaction.member) ||
+    interaction.memberPermissions?.has('Administrator') ||
+    interaction.memberPermissions?.has('ManageGuild');
+
+  if (prize && !canPrize) {
+    return interaction.reply(priv(box("❌ You can't add a prize.")));
   }
 
   active.set(interaction.channelId, { name, typing, prize, hostId: interaction.user.id });
@@ -343,6 +385,8 @@ module.exports = {
   edit,
   winnerBox,
   awardPrize,
+  lockFor,
+  LOCK_SECONDS,
   run,
   collectMessages,
   lobby,
