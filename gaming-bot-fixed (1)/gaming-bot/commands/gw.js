@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { isMod } = require('../utils/permissions');
+const { isMod, isAdmin } = require('../utils/permissions');
 const { fail, done, NO_PERMS } = require('../utils/reply');
+const { setupTotalChannel } = require('../utils/giveawayTotal');
 
 const ROLES = {
   giveaway: '1526927249604083904', // Giveaway Ping
@@ -34,19 +35,51 @@ function save(data) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('gw')
-    .setDescription('Ping the giveaway or drop role')
-    .addStringOption((o) =>
-      o
+    .setDescription('Giveaway tools')
+    .addSubcommand((s) =>
+      s
         .setName('ping')
-        .setDescription('Which role to ping')
-        .setRequired(true)
-        .addChoices(
-          { name: 'Giveaway', value: 'giveaway' },
-          { name: 'Quick drop', value: 'drop' }
+        .setDescription('Ping the giveaway or drop role')
+        .addStringOption((o) =>
+          o
+            .setName('role')
+            .setDescription('Which role to ping')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Giveaway', value: 'giveaway' },
+              { name: 'Quick drop', value: 'drop' }
+            )
         )
+    )
+    .addSubcommand((s) =>
+      s
+        .setName('total')
+        .setDescription('Create the "Total Given" voice channel that tracks everything given away')
     ),
 
   async execute(interaction) {
+    const sub = interaction.options.getSubcommand();
+
+    /* ---------- total ---------- */
+    if (sub === 'total') {
+      if (!isAdmin(interaction.member)) return fail(interaction, NO_PERMS);
+
+      try {
+        const { channel, created } = await setupTotalChannel(interaction.guild);
+
+        return done(
+          interaction,
+          created
+            ? `Created ${channel}. It updates every time a giveaway is made.`
+            : `The total channel already exists: ${channel}.`
+        );
+      } catch (err) {
+        console.error('[gw] could not create total channel:', err);
+        return fail(interaction, 'I couldn\'t create the channel. Make sure I have **Manage Channels**.');
+      }
+    }
+
+    /* ---------- ping ---------- */
     const member = interaction.member;
     const noCooldown = member.permissions.has(PermissionFlagsBits.ManageGuild);
 
@@ -61,7 +94,7 @@ module.exports = {
       }
     }
 
-    const roleId = ROLES[interaction.options.getString('ping')];
+    const roleId = ROLES[interaction.options.getString('role')];
 
     await interaction.channel.send({
       content: `<@&${roleId}>`,
