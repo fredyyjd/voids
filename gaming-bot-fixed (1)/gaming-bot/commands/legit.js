@@ -13,11 +13,11 @@ module.exports = {
     if (!isAdmin(interaction.member)) return fail(interaction, NO_PERMS);
 
     try {
-      const msg = await interaction.channel.send({ content: legit.PANEL_TEXT });
+      const msg = await interaction.channel.send({ embeds: [legit.buildPanelEmbed()] });
 
-      // no first, then yes
-      await msg.react(`${legit.NO_EMOJI.name}:${legit.NO_EMOJI.id}`);
+      // yes first, then no
       await msg.react(`${legit.YES_EMOJI.name}:${legit.YES_EMOJI.id}`);
+      await msg.react(`${legit.NO_EMOJI.name}:${legit.NO_EMOJI.id}`);
 
       const data = legit.load();
       data[msg.id] = { channelId: msg.channelId, guildId: interaction.guildId };
