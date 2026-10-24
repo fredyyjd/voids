@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { Routes, PermissionFlagsBits } = require('discord.js');
+const { Routes, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const config = require('../config.json');
 const { isMod } = require('./permissions');
+const { COLOR } = require('./theme');
 
 // "Are we legit?" panel settings
 const NO_EMOJI = { name: 'Emojis_32x32_13', id: '1545307137662517248' }; // no
@@ -17,16 +18,27 @@ const PANEL_TEXT =
   `**if you react with ${NO_TEXT} **\n` +
   `You have 24h to open a ticket with proof other wise you will be banned`;
 
-// userIds: everyone who currently has the no reaction, "@a, @b You voted ..."
-function voteMessage(userIds) {
-  const ids = Array.isArray(userIds) ? userIds : [userIds];
-  const mentions = ids.map((id) => `<@${id}>`).join(', ');
+function buildPanelEmbed() {
+  return new EmbedBuilder().setColor(COLOR).setDescription(PANEL_TEXT);
+}
 
-  return (
-    `${mentions} You voted ${NO_TEXT} on **Are we legit** -- you have **24 hours** to make a **General Help** ticket and explain why, or you will be banned. ` +
-    `Voted by mistake? Just remove your ${NO_TEXT} reaction.\n` +
-    `make a ticket here -> <#${TICKET_CHANNEL_ID}>`
-  );
+const WARNING_TEXT =
+  `You voted ${NO_TEXT} on **Are we legit** -- you have **24 hours** to make a **General Help** ticket and explain why, or you will be banned. ` +
+  `Voted by mistake? Just remove your ${NO_TEXT} reaction.\n` +
+  `make a ticket here -> <#${TICKET_CHANNEL_ID}>`;
+
+const mentionLine = (ids) => ids.map((id) => `<@${id}>`).join(', ');
+
+// The pings sit in the message content (embeds don't ping), the text in the embed.
+// userIds: everyone who currently has the no reaction -> "@a, @b"
+function buildWarning(userIds) {
+  const ids = Array.isArray(userIds) ? userIds : [userIds];
+
+  return {
+    content: mentionLine(ids),
+    embeds: [new EmbedBuilder().setColor(COLOR).setDescription(WARNING_TEXT)],
+    allowedMentions: { users: ids },
+  };
 }
 
 const DATA_DIR = process.env.DATA_DIR || '/app/data';
@@ -82,6 +94,7 @@ function saveVotes(data) {
 }
 
 const timers = new Map();
+
 
 function cancelTimer(userId) {
   clearTimeout(timers.get(userId));
@@ -165,7 +178,14 @@ function addVote(client, { userId, messageId, channelId, guildId }) {
   if (votes[userId]) return; // already counting down
 
   const now = Date.now();
-  votes[userId] = { messageId, channelId, guildId, votedAt: now, banAt: now + BAN_AFTER_MS };
+  votes[userId] = {
+    messageId,
+    channelId,
+    guildId,
+    votedAt: now,
+    banAt: now + BAN_AFTER_MS,
+    warnMessageIds: [],
+  };
   saveVotes(votes);
   arm(client, userId, votes[userId]);
 }
@@ -175,6 +195,57 @@ function activeVoters(messageId) {
   return Object.entries(loadVotes())
     .filter(([, v]) => v.messageId === messageId)
     .map(([userId]) => userId);
+}
+
+// Sends the warning (pinging everyone with a pending vote on this panel)
+// and remembers the message so it can be removed if they unreact.
+async function sendWarning(client, channel, panelMessageId, newUserId) {
+  const voters = activeVoters(panelMessageId);
+  if (!voters.includes(newUserId)) voters.push(newUserId);
+
+  const sent = await channel.send(buildWarning(voters));
+
+  const votes = loadVotes();
+  for (const id of voters) {
+    if (votes[id]) {
+      votes[id].warnMessageIds = [...(votes[id].warnMessageIds || []), sent.id];
+    }
+  }
+  saveVotes(votes);
+
+  return sent;
+}
+
+// They took the reaction back: cancel the ban and make their warning go away.
+// A warning that also pings other voters just loses this person's mention.
+async function cancelVote(client, userId) {
+  const votes = loadVotes();
+  const vote = votes[userId];
+  if (!vote) return;
+
+  delete votes[userId];
+  saveVotes(votes);
+  cancelTimer(userId);
+
+  const channel = await client.channels.fetch(vote.channelId).catch(() => null);
+  if (!channel) return;
+
+  for (const warnId of vote.warnMessageIds || []) {
+    const others = Object.entries(votes)
+      .filter(([, v]) => (v.warnMessageIds || []).includes(warnId))
+      .map(([id]) => id);
+
+    if (!others.length) {
+      await channel.messages.delete(warnId).catch(() => {});
+    } else {
+      const message = await channel.messages.fetch(warnId).catch(() => null);
+      if (message) {
+        await message
+          .edit({ content: mentionLine(others), allowedMentions: { users: others } })
+          .catch(() => {});
+      }
+    }
+  }
 }
 
 // removed their reaction
@@ -200,7 +271,10 @@ module.exports = {
   NO_EMOJI,
   YES_EMOJI,
   PANEL_TEXT,
-  voteMessage,
+  buildPanelEmbed,
+  buildWarning,
+  sendWarning,
+  cancelVote,
   load,
   save,
 };
