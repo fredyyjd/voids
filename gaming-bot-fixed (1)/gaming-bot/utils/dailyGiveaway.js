@@ -6,6 +6,7 @@ const {
   buildJoinRow,
   endGiveaway,
 } = require('./giveawayManager');
+const { addGiveawayPrize } = require('./giveawayTotal');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -90,6 +91,9 @@ async function postDailyGiveaway(client) {
     winnerCount,
     endTimestamp,
     channelId: channel.id,
+    guildId: channel.guildId,
+    hostName: client.user.username,
+    hostAvatar: client.user.displayAvatarURL(),
     entrants: [],
     ended: false,
     isDaily: true,
@@ -116,6 +120,9 @@ async function postDailyGiveaway(client) {
   const giveaways = loadGiveaways();
   giveaways[message.id] = giveaway;
   saveGiveaways(giveaways);
+
+  // Counts toward the "Total Given" voice channel (/gw total).
+  addGiveawayPrize(client, channel.guildId, prize);
 
   // This giveaway's own endTimestamp (stored above, and shown in the embed's
   // countdown) is what actually drives ending it — via the timer below. That
