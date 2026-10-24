@@ -15,7 +15,7 @@ module.exports = {
         .setRequired(true)
     )
     .addStringOption((opt) =>
-      opt.setName('prize').setDescription('Prize for the winner, e.g. 5m (max perms only)').setMaxLength(100).setRequired(false)
+      opt.setName('prize').setDescription('Prize for the winner, e.g. 5m (staff only)').setMaxLength(100).setRequired(false)
     ),
 
   async execute(interaction) {
