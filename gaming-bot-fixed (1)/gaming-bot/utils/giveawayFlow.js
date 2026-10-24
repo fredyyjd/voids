@@ -318,8 +318,8 @@ async function handleSplitStealButton(interaction) {
         .setColor(COLOR)
         .setTitle('Split or Steal!')
         .setDescription(
-          `You picked **${action === 'steal' ? 'Steal' : 'Split'}** for **${giveaway.prize}**.\n` +
-            (bothPicked ? 'Revealing the result now...' : `Waiting for <@${opponent}> to pick...`)
+          `You picked **${action === 'steal' ? 'Steal' : 'Split'}**.\n` +
+            (bothPicked ? 'Revealing...' : `Waiting for <@${opponent}>...`)
         ),
     ],
     components: [],
