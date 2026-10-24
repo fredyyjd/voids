@@ -17,6 +17,26 @@ const { addGiveawayPrize } = require('./giveawayTotal');
 // channelId -> { name, typing }. One game per channel at a time.
 const active = new Map();
 
+// Thrown when /game stop is used; run() swallows it.
+class GameStopped extends Error {}
+
+const isStopped = (channelId) => Boolean(active.get(channelId)?.stopped);
+
+function assertRunning(channelId) {
+  if (isStopped(channelId)) throw new GameStopped('stopped');
+}
+
+// Registers a collector with the running game so /game stop can end it at once.
+function track(channelId, col) {
+  const entry = active.get(channelId);
+  if (entry) {
+    entry.collectors.add(col);
+    col.once('end', () => entry.collectors.delete(col));
+    if (entry.stopped) col.stop('stopped');
+  }
+  return col;
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const rand = (a, b) => Math.floor(Math.random() * (b - a + 1)) + a;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -67,13 +87,17 @@ async function enforceGamesChannel(message) {
 
 // Plain flat box. `users` = who is allowed to be pinged by it.
 function say(channel, parts, { rows = [], users = [] } = {}) {
+  assertRunning(channel.id);
   return channel.send({
     ...box(parts, { rows }),
     allowedMentions: { parse: [], users },
   });
 }
 
-const edit = (msg, parts, rows = []) => msg.edit(box(parts, { rows })).catch(() => {});
+const edit = (msg, parts, rows = []) => {
+  assertRunning(msg.channelId);
+  return msg.edit(box(parts, { rows })).catch(() => {});
+};
 
 async function winnerBox(channel, title, ids) {
   const list = ids.map(nm).join(' ');
@@ -141,18 +165,55 @@ async function lockFor(channel, seconds = LOCK_SECONDS) {
 
   if (!locked && note) await edit(note, 'get ready · starting soon');
 
+  let unlocked = false;
+  const unlock = async () => {
+    if (!locked || unlocked) return;
+    unlocked = true;
+    await channel.permissionOverwrites
+      .edit(everyone, { SendMessages: original }, { reason: 'typing game started' })
+      .catch((err) => console.error('[games] could not unlock channel:', err.message));
+  };
+
+  const entry = active.get(channel.id);
+  if (entry) entry.unlock = unlock;
+
   try {
     await sleep(seconds * 1000);
   } finally {
-    if (locked) {
-      await channel.permissionOverwrites
-        .edit(everyone, { SendMessages: original }, { reason: 'typing game started' })
-        .catch((err) => console.error('[games] could not unlock channel:', err.message));
-    }
+    await unlock();
   }
 
   if (note) await edit(note, '🔓 go!');
   return locked;
+}
+
+/* ---------- /game stop ---------- */
+
+async function stopGame(interaction) {
+  const entry = active.get(interaction.channelId);
+
+  if (!entry) {
+    return interaction.reply(priv(box('❌ No game is running in this channel.')));
+  }
+
+  const allowed =
+    entry.hostId === interaction.user.id ||
+    isMod(interaction.member) ||
+    interaction.memberPermissions?.has('Administrator') ||
+    interaction.memberPermissions?.has('ManageGuild');
+
+  if (!allowed) {
+    return interaction.reply(priv(box('❌ Only the host or staff can stop this game.')));
+  }
+
+  entry.stopped = true;
+  for (const col of [...entry.collectors]) col.stop('stopped');
+  if (entry.unlock) await entry.unlock();
+
+  await interaction.reply({
+    ...box(`🛑 ${nm(interaction.user.id)} stopped the ${entry.name} game${entry.prize && !entry.awarded ? ' · no prize was given' : ''}`),
+    allowedMentions: { parse: [] },
+  });
 }
 
 /* ---------- running a game ---------- */
@@ -181,12 +242,21 @@ async function run(interaction, name, typing, fn) {
     return interaction.reply(priv(box("❌ You can't add a prize.")));
   }
 
-  active.set(interaction.channelId, { name, typing, prize, hostId: interaction.user.id });
+  active.set(interaction.channelId, {
+    name,
+    typing,
+    prize,
+    hostId: interaction.user.id,
+    stopped: false,
+    collectors: new Set(),
+    unlock: null,
+  });
 
   try {
     if (prize) await say(interaction.channel, `🎁 prize: **${prize}**`);
     await fn();
   } catch (err) {
+    if (err instanceof GameStopped) return;
     console.error(`[games] ${name} crashed:`, err);
     await say(interaction.channel, '❌ The game crashed.').catch(() => {});
   } finally {
@@ -197,7 +267,7 @@ async function run(interaction, name, typing, fn) {
 // Message collector as a promise (resolves when it ends).
 function collectMessages(channel, { filter, time, max, onCollect }) {
   return new Promise((resolve) => {
-    const col = channel.createMessageCollector({ filter, time, max });
+    const col = track(channel.id, channel.createMessageCollector({ filter, time, max }));
     col.on('collect', (m) => onCollect && onCollect(m, col));
     col.on('end', () => resolve());
   });
@@ -233,7 +303,7 @@ async function lobby(interaction, { title, rules, seconds = 30, min = 2, max = 4
   const msg = await interaction.fetchReply();
 
   await new Promise((resolve) => {
-    const col = msg.createMessageComponentCollector({ time: seconds * 1000 });
+    const col = track(msg.channelId, msg.createMessageComponentCollector({ time: seconds * 1000 }));
 
     col.on('collect', async (i) => {
       try {
@@ -262,6 +332,11 @@ async function lobby(interaction, { title, rules, seconds = 30, min = 2, max = 4
 
     col.on('end', () => resolve());
   });
+
+  if (isStopped(interaction.channelId)) {
+    await msg.edit(box([`## ${title}`, '🛑 stopped'])).catch(() => {});
+    throw new GameStopped('stopped');
+  }
 
   if (players.size < min) {
     await edit(msg, [`## ${title}`, `❌ needs at least ${min} players`]);
@@ -304,7 +379,7 @@ async function rpsMatch(channel, a, b, { seconds = 30, replayTies = false, heade
     });
 
     await new Promise((resolve) => {
-      const col = msg.createMessageComponentCollector({ time: seconds * 1000 });
+      const col = track(msg.channelId, msg.createMessageComponentCollector({ time: seconds * 1000 }));
 
       col.on('collect', async (i) => {
         try {
@@ -385,6 +460,8 @@ module.exports = {
   edit,
   winnerBox,
   awardPrize,
+  stopGame,
+  assertRunning,
   lockFor,
   LOCK_SECONDS,
   run,
