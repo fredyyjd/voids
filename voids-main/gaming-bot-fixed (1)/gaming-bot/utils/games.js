@@ -236,7 +236,7 @@ async function boats(interaction) {
       new ButtonBuilder().setCustomId(`g:paddle:${id}`).setLabel('Paddle').setEmoji('🚣').setStyle(ButtonStyle.Primary)
     );
 
-    const track = () =>
+    const renderTrack = () =>
       '```\n' +
       racers
         .map((r) => {
@@ -247,7 +247,7 @@ async function boats(interaction) {
         .join('\n') +
       '\n```';
 
-    const msg = await say(channel, [TITLE('boat race'), track(), '-# press paddle for a boost each round'], {
+    const msg = await say(channel, [TITLE('boat race'), renderTrack(), '-# press paddle for a boost each round'], {
       rows: [row],
     });
 
@@ -273,7 +273,7 @@ async function boats(interaction) {
       const top = Math.max(...racers.map((r) => r.pos));
       if (top >= LEN) winners = racers.filter((r) => r.pos === top);
 
-      await edit(msg, [TITLE('boat race'), track(), winners.length ? null : '-# press paddle for a boost each round'],
+      await edit(msg, [TITLE('boat race'), renderTrack(), winners.length ? null : '-# press paddle for a boost each round'],
         winners.length ? [] : [row]);
     }
 
