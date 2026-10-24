@@ -2,7 +2,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { box, priv } = require('./box');
 const {
   sleep, rand, pick, nm, uid, shuffle,
-  say, edit, winnerBox, awardPrize, run, collectMessages, lobby, rpsMatch,
+  say, edit, winnerBox, awardPrize, lockFor, LOCK_SECONDS, run, collectMessages, lobby, rpsMatch,
 } = require('./gameKit');
 
 /* =========================================================
@@ -83,6 +83,8 @@ async function lastTyper(interaction) {
     });
     if (!l) return;
 
+    await lockFor(channel);
+
     const alive = new Set(l.players.map((p) => p.id));
     let secs = 12;
     let round = 1;
@@ -133,7 +135,7 @@ async function closest(interaction) {
     const channel = interaction.channel;
     const secret = rand(1, 1000);
     const secs = 30;
-    const end = Math.floor(Date.now() / 1000) + secs;
+    const end = Math.floor(Date.now() / 1000) + LOCK_SECONDS + secs;
     const guesses = new Map();
 
     await interaction.reply({
@@ -144,6 +146,8 @@ async function closest(interaction) {
       ]),
       allowedMentions: { parse: [] },
     });
+
+    await lockFor(channel);
 
     await collectMessages(channel, {
       time: secs * 1000,
@@ -396,12 +400,12 @@ async function typingRace(interaction) {
     const scores = new Map();
 
     await interaction.reply({
-      ...box([TITLE('typing race'), `${ROUNDS} rounds. first to type the sentence exactly wins the round.`, '-# starting in 5s']),
+      ...box([TITLE('typing race'), `${ROUNDS} rounds. first to type the sentence exactly wins the round.`, `-# starting in ${LOCK_SECONDS}s`]),
       allowedMentions: { parse: [] },
     });
 
     const sentences = shuffle(SENTENCES).slice(0, ROUNDS);
-    await sleep(5000);
+    await lockFor(channel);
 
     for (let r = 0; r < ROUNDS; r++) {
       const target = sentences[r];
@@ -872,7 +876,7 @@ async function guessNumber(interaction, max) {
     const channel = interaction.channel;
     const secret = rand(1, max);
     const secs = 120;
-    const end = Math.floor(Date.now() / 1000) + secs;
+    const end = Math.floor(Date.now() / 1000) + LOCK_SECONDS + secs;
     let guesses = 0;
     let winner = null;
 
@@ -885,6 +889,8 @@ async function guessNumber(interaction, max) {
       ]),
       allowedMentions: { parse: [] },
     });
+
+    await lockFor(channel);
 
     await collectMessages(channel, {
       time: secs * 1000,
