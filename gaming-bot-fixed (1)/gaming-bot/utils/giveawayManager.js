@@ -122,17 +122,17 @@ function describeOutcome(giveaway) {
 
   switch (ss.outcome) {
     case 'split':
-      return `🤝 <@${a}> and <@${b}> both picked **Split**. They each win **${halfOfPrize(prize)}**!`;
+      return `🤝 <@${a}> & <@${b}> split **${halfOfPrize(prize)}** each!`;
     case 'steal':
-      return `😈 <@${winner}> picked **Steal** and takes the full **${prize}**! <@${other}> picked **Split** and gets nothing.`;
+      return `😈 <@${winner}> stole **${prize}**!`;
     case 'bothsteal':
-      return `💥 <@${a}> and <@${b}> both picked **Steal**. Nobody wins anything!`;
+      return `💥 Both stole. Nobody wins.`;
     case 'forfeit':
-      return `⏰ <@${other}> didn't pick in time, so <@${winner}> wins the full **${prize}**!`;
+      return `⏰ <@${other}> didn't pick. <@${winner}> wins **${prize}**!`;
     case 'noshow':
-      return '⏰ Neither player picked in time. Nobody wins.';
+      return '⏰ Nobody picked. No winner.';
     case 'notenough':
-      return 'Not enough entrants. Split or Steal needs at least 2 players.';
+      return 'Not enough entrants.';
     default:
       return '';
   }
@@ -157,7 +157,7 @@ function buildGiveawayEmbed(giveaway) {
         : `> **Entries:** ${entries}   **Winners:** ${giveaway.winnerCount}`,
       '',
       splitSteal
-        ? 'Press the button to join! 2 people get picked to play **Split or Steal**.'
+        ? 'Press the button to join!'
         : 'Press the button to join the giveaway!'
     );
   } else {
@@ -176,7 +176,7 @@ function buildGiveawayEmbed(giveaway) {
         if (!ss.resolved) {
           lines.push(
             '',
-            `⏳ Waiting for both players to pick **Split** or **Steal** (<t:${Math.floor(ss.deadline / 1000)}:R>).`
+            `⏳ Waiting for picks (<t:${Math.floor(ss.deadline / 1000)}:R>)`
           );
         } else {
           lines.push(
@@ -278,12 +278,8 @@ function buildChoicePayload(messageId, giveaway, playerId) {
     .setTitle('Split or Steal!')
     .setDescription(
       [
-        `You were picked for **${giveaway.prize}** against <@${opponent}>.`,
-        '',
-        'Pick **Split** to split the prize or **Steal** to steal the full prize.',
-        'If you both pick **Steal**, no one gets anything.',
-        '',
-        `Pick before <t:${Math.floor(ss.deadline / 1000)}:R> or you forfeit.`,
+        `**${giveaway.prize}** vs <@${opponent}>`,
+        `Pick <t:${Math.floor(ss.deadline / 1000)}:R> or you forfeit.`,
       ].join('\n')
     );
 
@@ -491,7 +487,7 @@ async function startSplitSteal(client, channel, message, giveaway) {
 
   if (!ss.players.length) {
     await channel.send({
-      content: `Not enough people entered **${giveaway.prize}**. Split or Steal needs at least 2 entrants.`,
+      content: `Not enough entrants for **${giveaway.prize}**.`,
     });
     return;
   }
@@ -504,11 +500,10 @@ async function startSplitSteal(client, channel, message, giveaway) {
 
   await channel.send({
     content:
-      `🤝 ${ss.players.map((id) => `<@${id}>`).join(' and ')}, you were picked for **Split or Steal** (**${giveaway.prize}**)!\n` +
+      `🤝 ${ss.players.map((id) => `<@${id}>`).join(' & ')} picked! ` +
       (failed.length
-        ? `I couldn't DM ${failed.map((id) => `<@${id}>`).join(' and ')}, press the button below to make your choice.`
-        : 'Check your DMs and pick **Split** or **Steal**.') +
-      `\nYou have until <t:${Math.floor(ss.deadline / 1000)}:R>.`,
+        ? `Can't DM ${failed.map((id) => `<@${id}>`).join(' & ')}, use the button.`
+        : 'Check your DMs.'),
     allowedMentions: { users: ss.players },
     components: failed.length ? [buildOpenChoiceRow(messageId)] : [],
   });
@@ -583,7 +578,7 @@ async function resolveSplitSteal(client, messageId) {
       user
         .send(
           `${describeOutcome(giveaway)}` +
-            (winners.includes(playerId) ? `\nPress **Claim Prize** in <#${giveaway.channelId}> to open a ticket.` : '')
+            (winners.includes(playerId) ? `\nClaim in <#${giveaway.channelId}>.` : '')
         )
         .catch(() => {});
     }
