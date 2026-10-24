@@ -13,13 +13,14 @@ const TICKET_CHANNEL_ID = '1526923660823232553';
 const NO_TEXT = `<:${NO_EMOJI.name}:${NO_EMOJI.id}>`;
 const YES_TEXT = `<:${YES_EMOJI.name}:${YES_EMOJI.id}>`;
 
+const PANEL_TITLE = 'Are we legit!';
+
 const PANEL_TEXT =
-  `# are we legit?\n` +
   `**if you react with ${NO_TEXT} **\n` +
   `You have 24h to open a ticket with proof other wise you will be banned`;
 
 function buildPanelEmbed() {
-  return new EmbedBuilder().setColor(COLOR).setDescription(PANEL_TEXT);
+  return new EmbedBuilder().setColor(COLOR).setTitle(PANEL_TITLE).setDescription(PANEL_TEXT);
 }
 
 const WARNING_TEXT =
