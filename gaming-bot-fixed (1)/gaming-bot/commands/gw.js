@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
-const { isMod, isAdmin } = require('../utils/permissions');
+const { isMod, hasMaxPerms } = require('../utils/permissions');
 const { fail, done, NO_PERMS } = require('../utils/reply');
 const { setupTotalChannel } = require('../utils/giveawayTotal');
 
@@ -62,7 +62,12 @@ module.exports = {
 
     /* ---------- total ---------- */
     if (sub === 'total') {
-      if (!isAdmin(interaction.member)) return fail(interaction, NO_PERMS);
+      // Manage Server or max perms (Administrator) only.
+      const canSetup =
+        hasMaxPerms(interaction.member) ||
+        interaction.member.permissions.has(PermissionFlagsBits.ManageGuild);
+
+      if (!canSetup) return fail(interaction, NO_PERMS);
 
       try {
         const { channel, created } = await setupTotalChannel(interaction.guild);
