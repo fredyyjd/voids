@@ -2,7 +2,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { box, priv } = require('./box');
 const {
   sleep, rand, pick, nm, uid, shuffle,
-  say, edit, winnerBox, run, collectMessages, lobby, rpsMatch,
+  say, edit, winnerBox, awardPrize, run, collectMessages, lobby, rpsMatch,
 } = require('./gameKit');
 
 /* =========================================================
@@ -913,6 +913,7 @@ async function guessNumber(interaction, max) {
     await say(channel, [`## 🏆 ${nm(winner)} got it`, `the number was **${secret}** · ${guesses} guess${guesses === 1 ? '' : 'es'}`], {
       users: [winner],
     });
+    await awardPrize(channel, [winner]);
   });
 }
 
