@@ -461,6 +461,7 @@ module.exports = {
   winnerBox,
   awardPrize,
   stopGame,
+  track,
   assertRunning,
   lockFor,
   LOCK_SECONDS,
