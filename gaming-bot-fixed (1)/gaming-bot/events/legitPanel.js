@@ -13,9 +13,9 @@ module.exports = {
 
         if (!legit.load()[d.message_id]) return; // not a legit panel
 
-        // took the reaction back: no ban
+        // took the reaction back: no ban, and their warning goes away
         if (packet.t === 'MESSAGE_REACTION_REMOVE') {
-          legit.clearVote(d.user_id);
+          await legit.cancelVote(client, d.user_id);
           return;
         }
 
@@ -31,14 +31,8 @@ module.exports = {
         const channel = await client.channels.fetch(d.channel_id).catch(() => null);
         if (!channel) return;
 
-        // ping everyone who currently has the no reaction: @a, @b
-        const voters = legit.activeVoters(d.message_id);
-        if (!voters.includes(d.user_id)) voters.push(d.user_id);
-
-        await channel.send({
-          content: legit.voteMessage(voters),
-          allowedMentions: { users: voters },
-        });
+        // pings everyone who currently has the no reaction: @a, @b
+        await legit.sendWarning(client, channel, d.message_id, d.user_id);
       } catch (err) {
         console.error('[legit] reaction failed:', err);
       }
