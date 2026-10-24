@@ -22,7 +22,14 @@ const data = new SlashCommandBuilder()
   .setDMPermission(false);
 
 for (const [name, description] of GAMES) {
-  data.addSubcommand((sub) => sub.setName(name).setDescription(description));
+  data.addSubcommand((sub) =>
+    sub
+      .setName(name)
+      .setDescription(description)
+      .addStringOption((opt) =>
+        opt.setName('prize').setDescription('Prize for the winner, e.g. 5m (max perms only)').setMaxLength(100).setRequired(false)
+      )
+  );
 }
 
 module.exports = {
