@@ -2,7 +2,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { box, priv } = require('./box');
 const {
   sleep, rand, pick, nm, uid, shuffle,
-  say, edit, winnerBox, awardPrize, lockFor, LOCK_SECONDS, run, collectMessages, lobby, rpsMatch,
+  say, edit, winnerBox, awardPrize, lockFor, track, assertRunning, LOCK_SECONDS, run, collectMessages, lobby, rpsMatch,
 } = require('./gameKit');
 
 /* =========================================================
@@ -251,7 +251,7 @@ async function boats(interaction) {
       rows: [row],
     });
 
-    const col = msg.createMessageComponentCollector({ time: 4 * 60 * 1000 });
+    const col = track(msg.channelId, msg.createMessageComponentCollector({ time: 4 * 60 * 1000 }));
     col.on('collect', async (i) => {
       if (!racers.some((r) => r.user.id === i.user.id)) {
         return i.reply(priv(box("You're not in this race."))).catch(() => {});
@@ -360,7 +360,7 @@ async function hotPotato(interaction) {
       const msg = await say(channel, view(), { rows: [row], users: [holder.id] });
 
       await new Promise((resolve) => {
-        const col = msg.createMessageComponentCollector({ time: fuse });
+        const col = track(msg.channelId, msg.createMessageComponentCollector({ time: fuse }));
 
         col.on('collect', async (i) => {
           try {
@@ -493,7 +493,7 @@ async function trivia(interaction) {
       );
 
       await new Promise((resolve) => {
-        const col = msg.createMessageComponentCollector({ time: secs * 1000 });
+        const col = track(msg.channelId, msg.createMessageComponentCollector({ time: secs * 1000 }));
 
         col.on('collect', async (i) => {
           try {
@@ -556,7 +556,7 @@ async function rollRound(channel, players, label) {
   const msg = await say(channel, view(), { rows: [row], users: [...ids] });
 
   await new Promise((resolve) => {
-    const col = msg.createMessageComponentCollector({ time: secs * 1000 });
+    const col = track(msg.channelId, msg.createMessageComponentCollector({ time: secs * 1000 }));
 
     col.on('collect', async (i) => {
       try {
@@ -662,7 +662,7 @@ async function chests(interaction) {
     const msg = await interaction.fetchReply();
 
     await new Promise((resolve) => {
-      const col = msg.createMessageComponentCollector({ time: secs * 1000 });
+      const col = track(msg.channelId, msg.createMessageComponentCollector({ time: secs * 1000 }));
 
       col.on('collect', async (i) => {
         try {
@@ -684,6 +684,8 @@ async function chests(interaction) {
 
       col.on('end', () => resolve());
     });
+
+    assertRunning(channel.id);
 
     const reveal = [...Array(TOTAL).keys()]
       .map((i) => `${i + 1}. ${prize.has(i) ? '🎁' : '💀'}${taken.has(i) ? ` ${nm(taken.get(i))}` : ''}`)
@@ -736,7 +738,7 @@ async function dontPress(interaction) {
       let pressed = false;
 
       await new Promise((resolve) => {
-        const col = msg.createMessageComponentCollector({ time: secs * 1000 });
+        const col = track(msg.channelId, msg.createMessageComponentCollector({ time: secs * 1000 }));
 
         col.on('collect', async (i) => {
           if (i.user.id !== player.id) {
@@ -812,7 +814,7 @@ async function numberElim(interaction) {
       const msg = await say(channel, [`**round ${round}** · ${alive.size} left`, `pick a number, ${secs}s`], { rows: [row] });
 
       await new Promise((resolve) => {
-        const col = msg.createMessageComponentCollector({ time: secs * 1000 });
+        const col = track(msg.channelId, msg.createMessageComponentCollector({ time: secs * 1000 }));
 
         col.on('collect', async (i) => {
           try {
