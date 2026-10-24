@@ -57,6 +57,8 @@ const {
   buildLeaveRow,
 } = require('../utils/giveawayManager');
 
+const { handleGiveawayInteraction } = require('../utils/giveawayFlow');
+
 const {
   OPTION_LABELS,
   buildStarsRow,
@@ -578,6 +580,16 @@ module.exports = {
   async execute(interaction) {
 
     try {
+
+      /* =====================================================
+         GIVEAWAY FORMS + BUTTONS
+
+         /giveaway start form, Claim Prize (IGN form) and the
+         Split or Steal buttons all live in utils/giveawayFlow.js
+      ===================================================== */
+
+      if (await handleGiveawayInteraction(interaction)) return;
+
 
       /* =====================================================
          SLASH COMMANDS
@@ -1594,72 +1606,6 @@ module.exports = {
               error
             );
           }
-
-          return;
-        }
-
-
-        /* =================================================
-           GIVEAWAY CLAIM
-        ================================================= */
-
-        if (
-          interaction.customId.startsWith(
-            'giveaway_prize_claim_'
-          )
-        ) {
-
-          const messageId =
-            interaction.customId.replace(
-              'giveaway_prize_claim_',
-              ''
-            );
-
-          const giveaways =
-            loadGiveaways();
-
-          const giveaway =
-            giveaways[messageId];
-
-          if (!giveaway) {
-            return interaction.reply({
-              content:
-                'This giveaway could not be found.',
-              flags: MessageFlags.Ephemeral,
-            });
-          }
-
-          const winners =
-            Array.isArray(giveaway.winners)
-              ? giveaway.winners
-              : [];
-
-          if (
-            !winners.includes(
-              interaction.user.id
-            )
-          ) {
-            return interaction.reply({
-              content:
-                'Only the winner of this giveaway can claim this prize.',
-              flags: MessageFlags.Ephemeral,
-            });
-          }
-
-          const answers = [
-            `**How much did you win?**\n${giveaway.prize}`,
-            `**Who was the giveaway hosted by?**\n${
-              giveaway.hostId
-                ? `<@${giveaway.hostId}>`
-                : 'Unknown'
-            }`,
-          ];
-
-          await createTicket(
-            interaction,
-            'giveaway_claim',
-            answers
-          );
 
           return;
         }
