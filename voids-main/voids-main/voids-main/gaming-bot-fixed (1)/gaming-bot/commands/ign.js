@@ -17,22 +17,17 @@ function embed() {
 
 // 🔒 Locked / IGN for money!
 function lockedEmbed({ prize, unlocksAt }) {
-  const lines = [
-    '## IGN for money!',
-    'When this channel unlocks, **spam your IGNs!**',
-    'The channel will lock again and a winner will be picked.',
-  ];
-
-  if (prize) lines.push('', `🎁 **Prize:** ${prize}`);
-  if (unlocksAt) lines.push('', `🔓 Unlocks <t:${unlocksAt}:R>`);
+  const lines = ['## IGN for money!', 'Spam your IGN when it unlocks!'];
+  if (prize) lines.push(`🎁 ${prize}`);
+  lines.push(`🔓 Unlocks <t:${unlocksAt}:R>`);
 
   return embed().setTitle('🔒 Locked').setDescription(lines.join('\n'));
 }
 
 function openEmbed({ prize, locksAt }) {
-  const lines = ['## IGN for money!', '# ⚡ SPAM YOUR IGNs NOW! ⚡'];
-  if (prize) lines.push('', `🎁 **Prize:** ${prize}`);
-  lines.push('', `🔒 Locks <t:${locksAt}:R>`);
+  const lines = ['## IGN for money!', '# SPAM YOUR IGN!'];
+  if (prize) lines.push(`🎁 ${prize}`);
+  lines.push(`🔒 Locks <t:${locksAt}:R>`);
 
   return embed().setTitle('🔓 Unlocked').setDescription(lines.join('\n'));
 }
@@ -109,17 +104,17 @@ module.exports = {
 
       // 3. unlock and collect IGNs
       const locksAt = now() + openFor;
-      const entries = new Map(); // userId -> first message they sent
+      let last = null; // the most recent message wins
 
       await channel.permissionOverwrites.edit(everyone, { SendMessages: true }, { reason: 'IGN giveaway open' });
       await msg.edit({ embeds: [openEmbed({ prize, locksAt })] }).catch(() => {});
 
       const collector = channel.createMessageCollector({
         time: openFor * 1000,
-        filter: (m) => !m.author.bot && m.author.id !== hostId,
+        filter: (m) => !m.author.bot && m.content.trim().length > 0,
       });
       collector.on('collect', (m) => {
-        if (!entries.has(m.author.id)) entries.set(m.author.id, m.content.trim().slice(0, 50));
+        last = { id: m.author.id, text: m.content.trim().slice(0, 50) };
       });
       await new Promise((resolve) => collector.on('end', () => resolve()));
 
@@ -132,9 +127,9 @@ module.exports = {
 
       await channel.send({ embeds: [embed().setTitle('🔒 Locked')], allowedMentions: NO_PINGS });
 
-      if (!entries.size) {
+      if (!last) {
         return channel.send({
-          embeds: [embed().setTitle('😴 No winner').setDescription('Nobody sent their IGN.')],
+          embeds: [embed().setTitle('😴 No winner').setDescription('Nobody sent anything.')],
           allowedMentions: NO_PINGS,
         });
       }
@@ -152,8 +147,8 @@ module.exports = {
       }
 
       // 6. reveal
-      const winnerId = [...entries.keys()][Math.floor(Math.random() * entries.size)];
-      const ign = entries.get(winnerId);
+      const winnerId = last.id;
+      const ign = last.text;
 
       await sleep(900);
       await pickedMsg
