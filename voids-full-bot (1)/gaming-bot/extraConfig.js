@@ -14,19 +14,30 @@ module.exports = {
     enabled: true,
 
     // key      = short id used by the bot (don't change once schematics exist)
-    // source   = private channel where staff forward the schem
-    // posting  = public channel where the bot posts it
+    // source   = the channel staff forward the schem to (the bot reads it, never posts here)
+    // posting  = the public SCHEMS channel the bot posts it in
     // emoji    = shown on the panel + dropdown. Normal emoji or '<:name:id>' / '<a:name:id>'
     categories: [
-      { key: 'stashes', label: 'Stashes',      emoji: '🏠', source: '1568023356522102794', posting: '1565869443861708910' },
-      { key: 'gamble',  label: 'Gamble Bases', emoji: '🎰', source: '1568023402541744238', posting: '1565869764633436241' },
-      { key: 'regear',  label: 'Regear Bases', emoji: '🛡️', source: '1568023446879735931', posting: '1565870049372410057' },
-      { key: 'rgear',   label: 'Rgear',        emoji: '⚔️', source: '1568023500621488229', posting: '1565870328134107156' },
-      { key: 'traps',   label: 'Traps',        emoji: '🪤', source: '1568023563657805865', posting: '1565870447252349038' },
+      { key: 'stashes', label: 'Stashes',       emoji: '🏠', source: '1568023356522102794', posting: '1565869443861708910' },
+      { key: 'gamble',  label: 'Gamble Bases',  emoji: '🎰', source: '1568023402541744238', posting: '1565869764633436241' },
+      { key: 'regear',  label: 'Regear Bases',  emoji: '🛡️', source: '1568023446879735931', posting: '1565870049372410057' },
+      { key: 'rgear',   label: 'Rgear',         emoji: '⚔️', source: '1568023500621488229', posting: '1565870328134107156' },
+      { key: 'traps',   label: 'Traps',         emoji: '🪤', source: '1568023563657805865', posting: '1565870447252349038' },
     ],
 
     // Channel the /schem panel is posted in (the schematic count + search).
     countChannelId: '1567859007589449789',
+
+    // Posting cooldown: one schematic post per person every N seconds.
+    postCooldownSeconds: 10,
+
+    // If someone keeps posting during the cooldown (spamming), they get a DM.
+    spamWarn: {
+      attempts: 10, // blocked tries inside the window below = DM
+      windowSeconds: 60,
+      dmCooldownMinutes: 30, // don't DM the same person again for this long
+      dm: "Hey, we see you're locked in on posting schems, but don't post so much. It looks like you're trying to abuse the points system. If it happens again you may be warned.",
+    },
 
     // Extra roles allowed to post schematics. Staff (admin / support / mod roles)
     // and anyone with Administrator are always allowed.
@@ -89,8 +100,8 @@ module.exports = {
   // resets every Sunday at 12pm in the timezone below.
   // ---------------------------------------------------------------
   staffPoints: {
-    points: { close: 2, rename: 2, claim: 1, post: 3 },
-    postCooldownSeconds: 2, // posts closer together than this don't earn points
+    points: { close: 2, rename: 2, claim: 1, post: 0.25 },
+    postCooldownSeconds: 10, // posts closer together than this don't earn points
     timezone: 'Australia/Sydney', // e.g. 'America/New_York', 'Europe/London', 'UTC'
     resetDay: 0, // 0 = Sunday
     resetHour: 12, // 12 = 12pm
