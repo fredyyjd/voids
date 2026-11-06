@@ -15,14 +15,14 @@ const POINTS = {
   close: 2,
   rename: 2,
   claim: 1,
-  post: 3,
+  post: 0.25,
   ...(cfg.points || {}),
 };
 
 const TIMEZONE = cfg.timezone || 'Australia/Sydney';
 const RESET_DAY = cfg.resetDay === undefined ? 0 : cfg.resetDay; // 0 = Sunday
 const RESET_HOUR = cfg.resetHour === undefined ? 12 : cfg.resetHour; // 12 = 12pm
-const POST_COOLDOWN_MS = (cfg.postCooldownSeconds === undefined ? 2 : cfg.postCooldownSeconds) * 1000;
+const POST_COOLDOWN_MS = (cfg.postCooldownSeconds === undefined ? 10 : cfg.postCooldownSeconds) * 1000;
 
 // data/staff_points.json
 //   weekStart  when the current week began (ms)
@@ -142,7 +142,7 @@ function record(member, action, ctx = {}) {
     const userId = member.id;
     const now = Date.now();
 
-    // 2 second cooldown on posting so a post can't be farmed.
+    // Cooldown on posting so a post can't be farmed.
     if (action === 'post') {
       if (now - (lastPost.get(userId) || 0) < POST_COOLDOWN_MS) return 0;
       lastPost.set(userId, now);
@@ -183,7 +183,7 @@ const VIEWS = {
   closes: { label: 'Ticket Closes', emoji: '🔒', unit: 'closes', description: 'Tickets closed (2 pts each)' },
   claims: { label: 'Ticket Claims', emoji: '🎫', unit: 'claims', description: 'Tickets claimed (1 pt each)' },
   renames: { label: 'Ticket Renames', emoji: '✏️', unit: 'renames', description: 'Tickets renamed (2 pts each)' },
-  posts: { label: 'Schematic Posts', emoji: '📦', unit: 'posts', description: 'Schematics posted (3 pts each)' },
+  posts: { label: 'Schematic Posts', emoji: '📦', unit: 'posts', description: 'Schematics posted (0.25 pts each)' },
 };
 
 const MEDALS = ['🥇', '🥈', '🥉'];
