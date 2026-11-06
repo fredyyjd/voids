@@ -29,7 +29,7 @@ module.exports = {
     countChannelId: '1567859007589449789',
 
     // Posting cooldown: one schematic post per person every N seconds.
-    postCooldownSeconds: 10,
+    postCooldownSeconds: 20,
 
     // If someone keeps posting during the cooldown (spamming), they get a DM.
     spamWarn: {
@@ -101,7 +101,7 @@ module.exports = {
   // ---------------------------------------------------------------
   staffPoints: {
     points: { close: 2, rename: 2, claim: 1, post: 0.25 },
-    postCooldownSeconds: 10, // posts closer together than this don't earn points
+    postCooldownSeconds: 20, // posts closer together than this don't earn points
     timezone: 'Australia/Sydney', // e.g. 'America/New_York', 'Europe/London', 'UTC'
     resetDay: 0, // 0 = Sunday
     resetHour: 12, // 12 = 12pm
