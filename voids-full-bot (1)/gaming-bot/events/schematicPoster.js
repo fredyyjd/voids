@@ -66,10 +66,93 @@ function tempReply(message, text) {
     .catch(() => {});
 }
 
+// ---------------------------------------------------------------------
+// Posting cooldown + spam warning
+// ---------------------------------------------------------------------
+const COOLDOWN_MS = (cfg.postCooldownSeconds === undefined ? 10 : cfg.postCooldownSeconds) * 1000;
+const spamCfg = cfg.spamWarn || {};
+const SPAM_ATTEMPTS = spamCfg.attempts || 10;
+const SPAM_WINDOW_MS = (spamCfg.windowSeconds || 60) * 1000;
+const SPAM_DM_COOLDOWN_MS = (spamCfg.dmCooldownMinutes || 30) * 60 * 1000;
+const SPAM_DM =
+  spamCfg.dm ||
+  "Hey, we see you're locked in on posting schems, but don't post so much. It looks like you're trying to abuse the points system. If it happens again you may be warned.";
+
+const lastAccepted = new Map(); // userId -> when their last post was accepted
+const blockedTries = new Map(); // userId -> times they tried during the cooldown
+const lastNotice = new Map(); // userId -> last time we replied "wait" (so we don't flood)
+const lastSpamDm = new Map(); // userId -> last time we DMed them
+
+function prune(map, maxAgeMs) {
+  if (map.size < 500) return;
+  const cutoff = Date.now() - maxAgeMs;
+  for (const [key, value] of map) {
+    const at = Array.isArray(value) ? value[value.length - 1] || 0 : value;
+    if (at < cutoff) map.delete(key);
+  }
+}
+
+// Seconds the person still has to wait (0 = free to post).
+function cooldownLeft(userId, now = Date.now()) {
+  const left = COOLDOWN_MS - (now - (lastAccepted.get(userId) || 0));
+  return left > 0 ? Math.ceil(left / 1000) : 0;
+}
+
+// Counts a blocked try. Returns true when it is time to DM them.
+function countBlockedTry(userId, now = Date.now()) {
+  const times = (blockedTries.get(userId) || []).filter((t) => now - t < SPAM_WINDOW_MS);
+  times.push(now);
+  blockedTries.set(userId, times);
+
+  if (times.length >= SPAM_ATTEMPTS && now - (lastSpamDm.get(userId) || 0) > SPAM_DM_COOLDOWN_MS) {
+    blockedTries.set(userId, []);
+    lastSpamDm.set(userId, now);
+    return true;
+  }
+  return false;
+}
+
+function handleTooFast(message, secondsLeft) {
+  const userId = message.author.id;
+  const now = Date.now();
+
+  if (countBlockedTry(userId, now)) {
+    message.author.send(SPAM_DM).catch(() => {}); // DMs closed? nothing to do
+  }
+
+  // One "wait" reply every few seconds is enough.
+  if (now - (lastNotice.get(userId) || 0) < 3000) return;
+  lastNotice.set(userId, now);
+
+  tempReply(
+    message,
+    `Whoa there! Wait for the ${Math.round(COOLDOWN_MS / 1000)}s cooldown to finish (${secondsLeft}s left).`
+  );
+
+  prune(lastAccepted, 60 * 60 * 1000);
+  prune(blockedTries, 60 * 60 * 1000);
+  prune(lastNotice, 60 * 60 * 1000);
+}
+
 // Posts are handled ONE AT A TIME. When someone forwards several schematics at
 // once, downloading all of them together is what makes the bot's memory jump.
 let postQueue = Promise.resolve();
 function handleSchematicMessage(message) {
+  // Cooldown is checked right away (before the queue) so fast posts can't slip through.
+  if (message.guild && !message.author?.bot) {
+    const category = schem.categoryBySource(message.channelId);
+    const hasFile = category && collectAttachments(message).some((a) => !isImage(a));
+
+    if (hasFile && canPost(message.member)) {
+      const left = cooldownLeft(message.author.id);
+      if (left > 0) {
+        handleTooFast(message, left);
+        return Promise.resolve();
+      }
+      lastAccepted.set(message.author.id, Date.now());
+    }
+  }
+
   postQueue = postQueue
     .then(() => processSchematicMessage(message))
     .catch((err) => console.error('[schematics] queued post failed:', err));
@@ -96,6 +179,7 @@ async function processSchematicMessage(message) {
   if (!destination || !destination.isTextBased()) {
     console.error(`[schematics] Posting channel ${category.posting} not found or not a text channel.`);
     tempReply(message, "I can't find the posting channel for this category.");
+    lastAccepted.delete(message.author.id);
     return;
   }
 
@@ -107,6 +191,7 @@ async function processSchematicMessage(message) {
   } catch (err) {
     console.error('[schematics] Could not download the files:', err.message);
     tempReply(message, "Couldn't read those files, try forwarding it again.");
+    lastAccepted.delete(message.author.id);
     return;
   }
 
@@ -120,6 +205,7 @@ async function processSchematicMessage(message) {
 
   if (keys.some((key) => inFlight.has(key)) || schem.findDuplicate(keys)) {
     tempReply(message, 'That schematic has already been posted, so it was not sent again.');
+    lastAccepted.delete(message.author.id);
     return;
   }
   keys.forEach((key) => inFlight.add(key));
@@ -152,7 +238,7 @@ async function processSchematicMessage(message) {
     });
     schem.scheduleUpdate(message.client);
 
-    // 3 points for staff who post a schematic (2 second cooldown between posts)
+    // 0.25 points for staff who post a schematic (amount lives in extraConfig -> staffPoints)
     staffPoints.record(message.member, 'post');
 
     message.react('✅').catch(() => {});
@@ -160,6 +246,7 @@ async function processSchematicMessage(message) {
   } catch (err) {
     console.error('[schematics] Could not post the schematic:', err);
     tempReply(message, "Couldn't post that schematic (the file may be too big for this server).");
+    lastAccepted.delete(message.author.id);
   } finally {
     keys.forEach((key) => inFlight.delete(key));
     // The downloaded files are big. Let go of them and, when the bot runs with
@@ -192,6 +279,7 @@ async function handleSchematicInteraction(interaction) {
 
 module.exports = {
   name: 'schematicPoster',
+  _test: { cooldownLeft, countBlockedTry, lastAccepted },
 
   register(client) {
     client.on('messageCreate', (message) => {
