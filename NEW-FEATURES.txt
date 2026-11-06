@@ -1,0 +1,37 @@
+New / changed files (same folder layout as the bot - drop them in and overwrite):
+
+NEW
+  extraConfig.js                  <- ALL the new ids/settings live here (schematic channels, template, partner, staff, ping guard)
+  commands/schem.js               /schem panel
+  commands/partner.js             /partner ping
+  commands/staff.js               /staff strike | warn | view | reset
+  events/schematicPoster.js       forward -> post, count panel, dropdown
+  events/partnerPing.js           accept/deny buttons for @Member pings
+  events/pingGuard.js             3 @everyone/@here in 10m = ban, 3 quick drop in 1m = 10m timeout
+  utils/schematics.js  utils/jsonStore.js  utils/partnerPing.js  utils/staffRecords.js  utils/pingGuard.js
+
+CHANGED
+  utils/antiNuke.js               harsher (3 kicks / 3 bans / 3 channel deletes / 3 role deletes / 3 webhooks in 10m = permanent ban)
+  utils/antiRaid.js               harsher (4 joins in 10s = raid, new accounts kicked/banned for 10m)
+  config.json                     only the antiNuke + antiRaid blocks changed
+  utils/applicationManager.js     nicer embed, status colours, fixes long applications failing to submit
+  utils/dmApplication.js          nicer DM flow + submit/cancel review step
+  commands/apply-panel.js         adds an "open positions" list
+  events/interactionCreate.js     anyone (except the applicant) can press the app buttons; management ping unchanged
+
+STAFF POINTS (new)
+  /staff lb        weekly staff points leaderboard (resets every Sunday 12pm)
+  /staff all-time  same leaderboard, never resets
+  Dropdown under the board: Staff Points / Ticket Closes / Ticket Claims / Ticket Renames / Schematic Posts
+  Points: close 2, rename 2, claim 1, schematic post 0.25 (20 second cooldown between posts)
+  Settings (points, timezone, reset time): extraConfig.js -> staffPoints
+  Files: utils/staffPoints.js, events/staffPoints.js, commands/staff.js (changed), utils/ticketManager.js,
+         commands/ticket.js, events/schematicPoster.js (changed)
+
+LOA + CLOSE REQUESTS (new)
+  /loa request days:<1-30> reason:<text>   goes to the LOA channel with Accept / Deny; Accept gives the LOA role until time is up
+  Set the LOA role id in extraConfig.js -> loa.roleId (channel + max days are there too)
+  Ticket close: staff pressing Close (or /close, /ticket close) asks the ticket owner "solved / helped?" with Close / Deny.
+    Owner closing their own ticket just closes it. Deny = ask again after 20s. The staff member who ASKED gets the close point.
+  Schematic posting: 20s cooldown, DM after ~10 spammed posts.
+  Files: commands/loa.js, utils/loaManager.js, events/loa.js, events/closeRequest.js, commands/ticket.js, utils/ticketManager.js, extraConfig.js
