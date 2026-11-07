@@ -1104,6 +1104,7 @@ async function unclaimTicket(
    CLOSE TICKET
 
    - The ticket owner closing their own ticket: it just closes.
+   - /close mode:Force: staff close it right away, no question.
    - Anyone else (staff): the bot asks the owner "has it been solved /
      helped?" with Close and Deny buttons.
    - Deny: the staff member can ask again after 20 seconds.
@@ -1122,7 +1123,7 @@ const deniedClose = new Map(); // channelId -> when the owner said no
 const ephemeral = (interaction, content) =>
   interaction.reply({ content, flags: MessageFlags.Ephemeral });
 
-async function closeTicket(interaction, reason) {
+async function closeTicket(interaction, reason, { force = false } = {}) {
   const meta = parseTopic(interaction.channel.topic);
 
   if (!meta) {
@@ -1150,6 +1151,11 @@ async function closeTicket(interaction, reason) {
   // The owner closing their own ticket: nothing to ask, just close it.
   if (isOwner) {
     return performClose(interaction, reason, member, member.id, null);
+  }
+
+  // Force close (/close mode:Force): staff close it right now, no question asked.
+  if (force) {
+    return performClose(interaction, reason, member, member.id, null, true);
   }
 
   // Staff: ask the owner first. If the owner left the server there is nobody to ask.
@@ -1255,12 +1261,13 @@ async function answerCloseRequest(interaction) {
   );
 }
 
-async function performClose(interaction, reason, closerMember, closerId, approvedBy) {
+async function performClose(interaction, reason, closerMember, closerId, approvedBy, forced = false) {
   const meta = parseTopic(interaction.channel.topic);
 
   const closingBox = box(
     `closed by <@${closerId}>` +
       (approvedBy ? ` (approved by ${approvedBy})` : '') +
+      (forced ? ' (force closed)' : '') +
       '.' +
       (reason ? `\n**reason:** ${reason}` : '') +
       '\n\nsaving transcript, this channel will be deleted shortly.'
