@@ -56,7 +56,7 @@ module.exports = {
       setTimeout(run, 30 * 1000).unref?.();
       setInterval(run, MIN).unref?.();
       setInterval(() => store.maintenance(), 60 * MIN).unref?.();
-      require('../utils/staffStatusPost').start(client);
+      require('../utils/activityCheckAuto').start(client);
 
       console.log('[staff] activity tracking and weekly review are running.');
     });
