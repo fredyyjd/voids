@@ -194,6 +194,9 @@ module.exports = {
       sub.setName('all-time').setDescription('Staff points leaderboard that never resets')
     )
     .addSubcommand((sub) =>
+      sub.setName('announce').setDescription('Ping @staff with an announcement (max perms only)')
+    )
+    .addSubcommand((sub) =>
       sub
         .setName('activity')
         .setDescription("See this week's tracked activity")
@@ -267,6 +270,9 @@ module.exports = {
 
   async execute(interaction) {
     if (interaction.options.getSubcommandGroup(false) === 'review') return handleReview(interaction);
+
+    // /staff announce opens a form, max perms only.
+    if (interaction.options.getSubcommand() === 'announce') return require('../utils/staffAnnounce').openForm(interaction);
 
     const sub = interaction.options.getSubcommand();
 
