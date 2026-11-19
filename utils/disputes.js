@@ -87,6 +87,12 @@ function responsesText(entries) {
   return out;
 }
 
+function statusText(d) {
+  if (d.status === 'closed') return `Closed by <@${d.statusBy}> ${ts(d.statusAt)}`;
+  if (d.status === 'blocked') return `Blocked by <@${d.statusBy}> ${ts(d.statusAt)}`;
+  return 'Open';
+}
+
 function disputeEmbed(d) {
   const evidence = (d.evidence || []).length
     ? d.evidence
@@ -97,13 +103,14 @@ function disputeEmbed(d) {
 
   const embed = new EmbedBuilder()
     .setTitle('False Timeout Dispute')
-    .setColor(d.status === 'open' ? 0xfee75c : COLOR)
+    .setColor(d.status === 'open' ? 0xfee75c : d.status === 'blocked' ? 0xed4245 : 0x57f287)
     .addFields(
       { name: 'User', value: `<@${d.userId}>`, inline: true },
       { name: 'Display name', value: clip(d.displayName, 100) || 'Unknown', inline: true },
       { name: 'User ID', value: d.userId, inline: true },
       { name: 'Username', value: clip(d.username, 100) || 'Unknown', inline: true },
       { name: 'Topic', value: 'False time out', inline: true },
+      { name: 'Status', value: statusText(d), inline: true },
       { name: 'Reason they selected', value: REASONS[d.reasonKey] || d.reasonLabel || 'Unknown' },
       {
         name: 'What auto mod did',
@@ -122,12 +129,38 @@ function disputeEmbed(d) {
   return embed;
 }
 
-const staffRow = (id) =>
-  new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`fto_msgback:${id}`).setLabel('Message back').setStyle(ButtonStyle.Primary)
-  );
+// Buttons under the dispute: open = Message back / Close / Block, closed = Re-open / Block, blocked = none.
+function staffRow(d) {
+  const btn = (customId, label, style) => new ButtonBuilder().setCustomId(`${customId}:${d.id}`).setLabel(label).setStyle(style);
+  if (d.status === 'blocked') return null;
+  const row = new ActionRowBuilder();
+  if (d.status === 'closed') {
+    row.addComponents(btn('fto_staffreopen', 'Re-open', ButtonStyle.Success), btn('fto_block', 'Block', ButtonStyle.Danger));
+  } else {
+    row.addComponents(
+      btn('fto_msgback', 'Message back', ButtonStyle.Primary),
+      btn('fto_close', 'Close dispute', ButtonStyle.Secondary),
+      btn('fto_block', 'Block', ButtonStyle.Danger)
+    );
+  }
+  return row;
+}
+
+const staffPayload = (d) => {
+  const row = staffRow(d);
+  return { embeds: [disputeEmbed(d)], components: row ? [row] : [] };
+};
 
 const canReply = (member) => !!member && (isAdmin(member) || hasBypassRole(member));
+
+// Someone already has a dispute for this timeout: open = wait, closed = re-open it, blocked = no.
+async function existingReply(interaction, d) {
+  if (d.status === 'blocked') {
+    return interaction.reply({ content: "High staff blocked you from disputing this timeout, so you can't open another dispute for it." });
+  }
+  if (d.status === 'closed') return reopen(interaction, d.id, 'user');
+  return interaction.reply({ content: 'You already opened a dispute for this timeout. High staff will get back to you.' });
+}
 
 /* ---------- step 1: button -> "what do you want to contact them about" ---------- */
 
@@ -140,9 +173,8 @@ async function openFlow(interaction, punId) {
     });
   }
 
-  if (Object.values(disputes.all()).some((d) => d.punId === punId)) {
-    return interaction.reply({ content: 'You already opened a dispute for this timeout. High staff will get back to you.' });
-  }
+  const existing = Object.values(disputes.all()).find((d) => d.punId === punId);
+  if (existing) return existingReply(interaction, existing);
 
   const embed = new EmbedBuilder()
     .setColor(COLOR)
@@ -191,8 +223,13 @@ async function reasonFlow(interaction, punId) {
     return interaction.followUp({ content: 'Something went wrong. Please press the button on the timeout message again.' });
   }
 
-  if (Object.values(disputes.all()).some((d) => d.punId === punId)) {
-    return interaction.followUp({ content: 'You already opened a dispute for this timeout. High staff will get back to you.' });
+  const existing = Object.values(disputes.all()).find((d) => d.punId === punId);
+  if (existing) {
+    const text =
+      existing.status === 'blocked'
+        ? "High staff blocked you from disputing this timeout, so you can't open another dispute for it."
+        : 'You already opened a dispute for this timeout. High staff will get back to you.';
+    return interaction.followUp({ content: text });
   }
 
   const client = interaction.client;
@@ -227,15 +264,8 @@ async function reasonFlow(interaction, punId) {
     messageId: null,
   };
 
-  const adminRoles = (config.adminRoleIds || []).filter(validId);
-  const sent = await channel
-    .send({
-      content: adminRoles.length ? adminRoles.map((r) => `<@&${r}>`).join(' ') : undefined,
-      embeds: [disputeEmbed(d)],
-      components: [staffRow(id)],
-      allowedMentions: { roles: adminRoles },
-    })
-    .catch(() => null);
+  // No pings: the dispute is just posted in the channel.
+  const sent = await channel.send({ ...staffPayload(d), allowedMentions: { parse: [] } }).catch(() => null);
 
   if (!sent) {
     return interaction.followUp({ content: "I couldn't reach high staff right now. Please message an Admin in the server." });
@@ -254,8 +284,10 @@ async function msgBackButton(interaction, id) {
   if (!canReply(interaction.member)) {
     return interaction.reply({ content: "❌ Only higher staff can reply to disputes.", flags: MessageFlags.Ephemeral });
   }
-  if (!disputes.get(id)) {
-    return interaction.reply({ content: 'That dispute was not found.', flags: MessageFlags.Ephemeral });
+  const found = disputes.get(id);
+  if (!found) return interaction.reply({ content: 'That dispute was not found.', flags: MessageFlags.Ephemeral });
+  if (found.status !== 'open') {
+    return interaction.reply({ content: 'That dispute is not open. Re-open it first.', flags: MessageFlags.Ephemeral });
   }
 
   const modal = new ModalBuilder()
@@ -280,6 +312,7 @@ async function msgBackSubmit(interaction, id) {
   if (!canReply(interaction.member)) {
     return interaction.reply({ content: '❌ Only higher staff can reply to disputes.', flags: MessageFlags.Ephemeral });
   }
+  if (d.status !== 'open') return interaction.reply({ content: 'That dispute is not open. Re-open it first.', flags: MessageFlags.Ephemeral });
 
   const text = interaction.fields.getTextInputValue('text').trim();
   if (!text) return interaction.reply({ content: 'Type something first.', flags: MessageFlags.Ephemeral });
@@ -312,7 +345,7 @@ async function msgBackSubmit(interaction, id) {
   ].slice(-MAX_ENTRIES);
   disputes.set(id, d);
 
-  const payload = { embeds: [disputeEmbed(d)], components: [staffRow(id)] };
+  const payload = staffPayload(d);
   if (interaction.isFromMessage()) await interaction.update(payload);
   else {
     await interaction.message?.edit(payload).catch(() => {});
@@ -332,6 +365,10 @@ async function userReplyButton(interaction, id) {
   const d = disputes.get(id);
   if (!d || d.userId !== interaction.user.id) {
     return interaction.reply({ content: 'That dispute was not found.' });
+  }
+  if (d.status === 'blocked') return interaction.reply({ content: "High staff blocked you from disputing this timeout, so you can't reply." });
+  if (d.status === 'closed') {
+    return interaction.reply({ content: 'This dispute is closed. Press **Contact higher ups** on your timeout message to re-open it.' });
   }
 
   const modal = new ModalBuilder()
@@ -353,6 +390,10 @@ async function userReplyButton(interaction, id) {
 async function userReplySubmit(interaction, id) {
   const d = disputes.get(id);
   if (!d || d.userId !== interaction.user.id) return interaction.reply({ content: 'That dispute was not found.' });
+  if (d.status === 'blocked') return interaction.reply({ content: "High staff blocked you from disputing this timeout, so you can't reply." });
+  if (d.status === 'closed') {
+    return interaction.reply({ content: 'This dispute is closed. Press **Contact higher ups** on your timeout message to re-open it.' });
+  }
 
   const text = interaction.fields.getTextInputValue('text').trim();
   if (!text) return interaction.reply({ content: 'Type something first.' });
@@ -368,10 +409,79 @@ async function userReplySubmit(interaction, id) {
     return interaction.reply({ content: "I couldn't reach high staff right now. Please message an Admin in the server." });
   }
 
-  await message.edit({ embeds: [disputeEmbed(d)], components: [staffRow(id)] }).catch(() => {});
+  await message.edit(staffPayload(d)).catch(() => {});
   await message.reply({ content: `📨 **${clip(d.displayName, 60)}** replied to this dispute.`, allowedMentions: { parse: [] } }).catch(() => {});
 
   return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setDescription('Your reply was sent to high staff.')] });
+}
+
+/* ---------- close / block / re-open ---------- */
+
+async function fetchDisputeMessage(client, d) {
+  const guild = client.guilds.cache.get(d.guildId) || (await client.guilds.fetch(d.guildId).catch(() => null));
+  const channel = guild ? await guild.channels.fetch(d.channelId).catch(() => null) : null;
+  return channel?.isTextBased() ? channel.messages.fetch(d.messageId).catch(() => null) : null;
+}
+
+async function setStatus(interaction, id, status) {
+  if (!canReply(interaction.member)) {
+    return interaction.reply({ content: '❌ Only higher staff can do that.', flags: MessageFlags.Ephemeral });
+  }
+  const d = disputes.get(id);
+  if (!d) return interaction.reply({ content: 'That dispute was not found.', flags: MessageFlags.Ephemeral });
+
+  d.status = status;
+  d.statusBy = interaction.user.id;
+  d.statusAt = Date.now();
+  disputes.set(id, d);
+
+  await interaction.update(staffPayload(d));
+
+  const user = await interaction.client.users.fetch(d.userId).catch(() => null);
+  if (!user) return;
+
+  if (status === 'closed') {
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`fto_reopen:${id}`).setLabel('Re-open dispute').setStyle(ButtonStyle.Secondary)
+    );
+    await user
+      .send({ embeds: [new EmbedBuilder().setColor(COLOR).setDescription('Your dispute was **closed** by high staff. You can re-open it if you still need help.')], components: [row] })
+      .catch(() => {});
+  } else if (status === 'blocked') {
+    await user
+      .send({ embeds: [new EmbedBuilder().setColor(0xed4245).setDescription("Your dispute was closed and high staff blocked you from disputing this timeout again.")] })
+      .catch(() => {});
+  } else if (status === 'open') {
+    await user
+      .send({ embeds: [new EmbedBuilder().setColor(COLOR).setDescription('High staff **re-opened** your dispute.')] })
+      .catch(() => {});
+  }
+}
+
+// The user re-opens a closed dispute (button in the close DM, or the Contact higher ups button again).
+async function reopen(interaction, id, who) {
+  const d = disputes.get(id);
+  if (!d || d.userId !== interaction.user.id) return interaction.reply({ content: 'That dispute was not found.' });
+  if (d.status === 'blocked') {
+    return interaction.reply({ content: "High staff blocked you from disputing this timeout, so you can't re-open it." });
+  }
+  if (d.status === 'open') return interaction.reply({ content: 'This dispute is already open. High staff will get back to you.' });
+
+  d.status = 'open';
+  d.statusBy = null;
+  d.statusAt = Date.now();
+  disputes.set(id, d);
+
+  const message = await fetchDisputeMessage(interaction.client, d);
+  if (!message) {
+    d.status = 'closed';
+    disputes.set(id, d);
+    return interaction.reply({ content: "I couldn't reach high staff right now. Please message an Admin in the server." });
+  }
+
+  await message.edit(staffPayload(d)).catch(() => {});
+  await message.reply({ content: `🔓 **${clip(d.displayName, 60)}** re-opened this dispute.`, allowedMentions: { parse: [] } }).catch(() => {});
+  return interaction.reply({ embeds: [new EmbedBuilder().setColor(COLOR).setDescription('**Dispute re-opened.** Wait for high staff to get back to you.')] });
 }
 
 /* ---------- router ---------- */
@@ -383,6 +493,10 @@ async function handle(interaction) {
     if (id.startsWith('fto_open:')) { await openFlow(interaction, id.slice(9)); return true; }
     if (id.startsWith('fto_msgback:')) { await msgBackButton(interaction, id.slice(12)); return true; }
     if (id.startsWith('fto_reply:')) { await userReplyButton(interaction, id.slice(10)); return true; }
+    if (id.startsWith('fto_close:')) { await setStatus(interaction, id.slice(10), 'closed'); return true; }
+    if (id.startsWith('fto_block:')) { await setStatus(interaction, id.slice(10), 'blocked'); return true; }
+    if (id.startsWith('fto_staffreopen:')) { await setStatus(interaction, id.slice(16), 'open'); return true; }
+    if (id.startsWith('fto_reopen:')) { await reopen(interaction, id.slice(11), 'user'); return true; }
   } else if (interaction.isStringSelectMenu()) {
     if (id.startsWith('fto_topic:')) { await topicFlow(interaction, id.slice(10)); return true; }
     if (id.startsWith('fto_reason:')) { await reasonFlow(interaction, id.slice(11)); return true; }
