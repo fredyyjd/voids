@@ -74,7 +74,8 @@ SERVER MANAGEMENT UPDATE (new)
     Buttons: Staff (live preview of promotions, demotions, Staff of the Week pick, top scores, who needs attention)
     and Server (spam, @everyone / @here, mass mention and protected-ping triggers: 24h, 7 days, all time, unique people, most triggered)
     Files: commands/server-management.js, utils/modStats.js (data/mod_stats.json)
-  Weekly staff status post (extraConfig.js -> staffStatusPost)
-    Posts the live staff status in channel 1558777181633515610 once a week on a random day at 5pm (Australia/Sydney).
-    The first one is Thursday 19 Nov 2026 at 5:40pm. The next time is saved in data/staff_status_post.json so restarts keep it.
-    Files: utils/staffStatusPost.js, utils/staffStatusView.js, events/staffManager.js
+  Automatic weekly activity check (extraConfig.js -> activityCheckAuto)
+    Posts the normal activity check in channel 1558777181633515610 once a week on a random day at 5pm (Australia/Sydney).
+    The first one is Thursday 19 Nov 2026 at 5:56pm. Results, warnings and strikes go to channel 1558783436565782598 after 5 hours.
+    Promotions, demotions, strikes and the weekly report also go to 1558783436565782598.
+    Files: utils/activityCheckAuto.js, events/staffManager.js
