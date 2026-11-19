@@ -4,10 +4,13 @@ const extra = require('../extraConfig');
 const createStore = require('./jsonStore');
 const { hasBypassRole } = require('./staffBypass');
 const modStats = require('./modStats');
+const langFilter = require('./langFilter');
+const disputes = require('./disputes');
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
 const MAX_TIMEOUT_MS = 28 * 24 * HOUR;
+const KEEP_OFFENCES_MS = 7 * 24 * HOUR;
 
 const offenceStore = createStore('automod_offences.json', {});
 const spamHits = new Map();
@@ -47,6 +50,16 @@ const DEFAULTS = {
     maxRolesInWindow: 5,
     timeoutMinutes: 15,
     repeatAddMinutes: 15,
+  },
+  // Swearing at someone ("fuck you", "fuck @user"): 1st time = warning DM only,
+  // then a 10 minute timeout that grows by 10 minutes every time they do it again.
+  // Slurs (faggot / retard / nigga / nigger): 1 hour timeout straight away, +1 hour each repeat.
+  language: {
+    enabled: true,
+    deleteMessage: true,
+    lookbackHours: 72,
+    targeted: { timeoutMinutes: 10, repeatAddMinutes: 10 },
+    slurs: { timeoutMinutes: 60, repeatAddMinutes: 60 },
   },
 };
 
@@ -141,17 +154,35 @@ function typingGameRunning(channelId) {
   }
 }
 
-function recentOffences(key, cfg) {
-  const lookback = cfg.repeatLookbackHours * HOUR;
+function recentOffences(key, cfg, { hours = cfg.repeatLookbackHours, kinds = null, exclude = null } = {}) {
+  const lookback = hours * HOUR;
   const now = Date.now();
-  const list = (offenceStore.get(key) || []).filter((o) => now - o.t <= lookback);
-  return list;
+  return (offenceStore.get(key) || []).filter(
+    (o) => now - o.t <= lookback && (!kinds || kinds.includes(o.kind)) && (!exclude || !exclude.includes(o.kind))
+  );
 }
 
-function addOffence(key, kind, cfg) {
-  const list = recentOffences(key, cfg);
-  list.push({ t: Date.now(), kind });
+function addOffence(key, kind) {
+  const now = Date.now();
+  const list = (offenceStore.get(key) || []).filter((o) => now - o.t <= KEEP_OFFENCES_MS);
+  list.push({ t: now, kind });
   offenceStore.set(key, list);
+}
+
+// A language warning is not a punishment, so it does not make other timeouts longer.
+function genericPrior(key, cfg) {
+  return recentOffences(key, cfg, { exclude: ['language_warn'] }).length;
+}
+
+const clip = (text, n) => {
+  const t = String(text ?? '');
+  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
+};
+
+function messageText(message) {
+  const text = String(message.content || '').trim();
+  if (text) return clip(text, 300);
+  return message.attachments?.size ? '[attachment]' : '';
 }
 
 function durationFor(prior, baseMinutes, addMinutes) {
@@ -206,17 +237,42 @@ async function deleteTracked(guild, entries) {
   }
 }
 
-function buildDm(guild, reason, ms, until, cfg) {
-  return (
-    `You were timed out in **${guild.name}** for **${formatDuration(ms)}**.\n` +
-    `**Reason:** ${reason}\n` +
-    `Your timeout ends <t:${Math.floor(until / 1000)}:R>.\n\n` +
-    'Our automatic moderation system is currently in **beta**, so it can make mistakes. ' +
-    `If you think this was a mistake, ${cfg.contactText}`
-  );
+function buildDm(guild, reason, ms, until, punId) {
+  const embed = new EmbedBuilder()
+    .setColor('#ED4245')
+    .setDescription(
+      `You were timed out in **${guild.name}** for **${formatDuration(ms)}**.\n` +
+        `**Reason:** ${reason}\n` +
+        `Your timeout ends <t:${Math.floor(until / 1000)}:R>.\n\n` +
+        'Our automatic moderation system is currently in **beta**, so it can make mistakes. ' +
+        'If you think this was a mistake, press **Contact higher ups** below.'
+    );
+  return { embeds: [embed], components: [disputes.contactRow(punId)] };
 }
 
-async function takeAction(message, cfg, { kind, title, reason, trackedEntries, baseMinutes, addMinutes, extraFields = [] }) {
+function buildWarnDm(guild, userId) {
+  const embed = new EmbedBuilder()
+    .setColor('#FEE75C')
+    .setDescription(
+      `Hey <@${userId}>, I see you sent an inappropriate message. This is a **warning**, keep language kind so the server stays safe.`
+    )
+    .setFooter({ text: guild.name });
+  return { embeds: [embed] };
+}
+
+async function takeAction(message, cfg, opts) {
+  const {
+    kind,
+    title,
+    reason,
+    trackedEntries,
+    baseMinutes = 0,
+    addMinutes = 0,
+    extraFields = [],
+    decide = null,
+    deleteOffending = true,
+  } = opts;
+
   const guild = message.guild;
   const userId = message.author.id;
   const key = `${guild.id}:${userId}`;
@@ -240,52 +296,80 @@ async function takeAction(message, cfg, { kind, title, reason, trackedEntries, b
   try {
     const entries = [...(trackedEntries || [])];
     if (!entries.some((e) => e.messageId === message.id)) {
-      entries.push({ channelId: message.channelId, messageId: message.id });
+      entries.push({ channelId: message.channelId, messageId: message.id, content: messageText(message) });
     }
 
-    await deleteTracked(guild, entries);
+    // What they actually said, saved before the messages are deleted.
+    const evidence = entries
+      .filter((e) => e.content)
+      .slice(-10)
+      .map((e) => ({ text: clip(e.content, 300), channelId: e.channelId }));
 
-    const prior = recentOffences(key, cfg).length;
-    const ms = durationFor(prior, baseMinutes, addMinutes);
+    if (deleteOffending) await deleteTracked(guild, entries);
+
+    const decision = decide ? decide(key) : null;
+    const prior = decision ? decision.prior : genericPrior(key, cfg);
+    const warnOnly = Boolean(decision?.warnOnly);
+    const offenceKind = decision?.offenceKind || kind;
+    const logTitle = decision?.title || title;
+    const ms = warnOnly ? 0 : decision && decision.ms != null ? decision.ms : durationFor(prior, baseMinutes, addMinutes);
     const endsAt = Date.now() + ms;
 
     let timedOut = false;
     let failure = null;
 
-    try {
-      const member = message.member || (await guild.members.fetch(userId).catch(() => null));
-      if (!member) throw new Error('Member not found');
-      if (member.moderatable === false) throw new Error('I cannot moderate this member (their role is above mine or they are an Administrator).');
-      await member.timeout(ms, `Auto moderation: ${reason}`.slice(0, 450));
-      timedOut = true;
-    } catch (err) {
-      failure = err.message;
-      console.error('[AUTOMOD] timeout failed:', err.message);
+    if (!warnOnly) {
+      try {
+        const member = message.member || (await guild.members.fetch(userId).catch(() => null));
+        if (!member) throw new Error('Member not found');
+        if (member.moderatable === false) throw new Error('I cannot moderate this member (their role is above mine or they are an Administrator).');
+        await member.timeout(ms, `Auto moderation: ${reason}`.slice(0, 450));
+        timedOut = true;
+      } catch (err) {
+        failure = err.message;
+        console.error('[AUTOMOD] timeout failed:', err.message);
+      }
     }
 
-    addOffence(key, kind, cfg);
-    modStats.record(kind, userId, { ok: timedOut });
+    addOffence(key, offenceKind);
+    modStats.record(offenceKind, userId, { ok: warnOnly ? true : timedOut });
     cooldownUntil.set(key, Date.now() + cfg.actionCooldownSeconds * 1000);
     spamHits.delete(key);
     mentionHits.delete(key);
 
     let dmSent = false;
-    if (timedOut) {
+    if (warnOnly) {
+      dmSent = await message.author.send(buildWarnDm(guild, userId)).then(() => true).catch(() => false);
+    } else if (timedOut) {
+      // Saved so the "Contact higher ups" button can show staff what happened.
+      const punId = disputes.recordPunishment({
+        guildId: guild.id,
+        userId,
+        kind: offenceKind,
+        reason,
+        timeoutText: formatDuration(ms),
+        evidence,
+      });
       dmSent = await message.author
-        .send(buildDm(guild, reason, ms, endsAt, cfg))
+        .send(buildDm(guild, reason, ms, endsAt, punId))
         .then(() => true)
         .catch(() => false);
     }
 
+    const ok = warnOnly || timedOut;
     const embed = new EmbedBuilder()
-      .setTitle(timedOut ? title : `${title} - TIMEOUT FAILED`)
-      .setColor(timedOut ? '#ED4245' : '#FEE75C')
+      .setTitle(ok ? logTitle : `${logTitle} - TIMEOUT FAILED`)
+      .setColor(warnOnly ? '#FEE75C' : timedOut ? '#ED4245' : '#FEE75C')
       .addFields(
         { name: 'User', value: `<@${userId}> (${message.author.tag})`, inline: true },
         { name: 'Channel', value: `<#${message.channelId}>`, inline: true },
-        { name: 'Timeout', value: timedOut ? formatDuration(ms) : 'None', inline: true },
+        { name: 'Timeout', value: warnOnly ? 'Warning only' : timedOut ? formatDuration(ms) : 'None', inline: true },
         { name: 'Reason', value: reason.slice(0, 1000) },
-        { name: 'Messages deleted', value: String(entries.length), inline: true },
+        {
+          name: 'Messages',
+          value: clip(evidence.map((e) => `• ${e.text.replace(/\n/g, ' ')}`).join('\n') || '*No text*', 1000),
+        },
+        { name: 'Messages deleted', value: deleteOffending ? String(entries.length) : '0', inline: true },
         { name: 'Previous offences (recent)', value: String(prior), inline: true },
         { name: 'DM sent', value: dmSent ? 'Yes' : 'No (DMs closed or timeout failed)', inline: true },
         ...extraFields
@@ -341,7 +425,7 @@ async function checkEveryone(message, cfg) {
     reason: 'You used @everyone or @here without permission.',
     baseMinutes: cfg.everyone.timeoutMinutes,
     addMinutes: cfg.everyone.repeatAddMinutes,
-    trackedEntries: [{ channelId: message.channelId, messageId: message.id }],
+    trackedEntries: [{ channelId: message.channelId, messageId: message.id, content: messageText(message) }],
   });
   return true;
 }
@@ -360,6 +444,7 @@ async function checkMentions(message, cfg) {
     t: Date.now(),
     channelId: message.channelId,
     messageId: message.id,
+    content: messageText(message),
     users: userIds,
     roles: roles ? [...message.mentions.roles.keys()] : [],
   };
@@ -404,7 +489,7 @@ async function checkSpam(message, cfg) {
   const hits = pushHit(
     spamHits,
     key,
-    { t: Date.now(), channelId: message.channelId, messageId: message.id },
+    { t: Date.now(), channelId: message.channelId, messageId: message.id, content: messageText(message) },
     s.windowSeconds * 1000
   );
 
@@ -418,6 +503,53 @@ async function checkSpam(message, cfg) {
     addMinutes: s.repeatAddMinutes,
     trackedEntries: hits,
     extraFields: [{ name: 'Messages in window', value: String(hits.length), inline: true }],
+  });
+  return true;
+}
+
+async function checkLanguage(message, cfg) {
+  const l = cfg.language;
+  if (!l.enabled) return false;
+  if (cfg.exemptChannelIds.includes(message.channelId)) return false;
+  if (!message.content) return false;
+
+  const hit = langFilter.check(message.content);
+  if (!hit) return false;
+
+  if (hit.type === 'slur') {
+    await takeAction(message, cfg, {
+      kind: 'slur',
+      title: 'Auto Mod: Slur',
+      reason: 'You used a slur or hateful language, which is not allowed here.',
+      deleteOffending: l.deleteMessage,
+      decide: (key) => {
+        const prior = recentOffences(key, cfg, { hours: l.lookbackHours, kinds: ['slur'] }).length;
+        return {
+          prior,
+          ms: durationFor(prior, l.slurs.timeoutMinutes, l.slurs.repeatAddMinutes),
+          offenceKind: 'slur',
+        };
+      },
+    });
+    return true;
+  }
+
+  await takeAction(message, cfg, {
+    kind: 'language',
+    title: 'Auto Mod: Inappropriate Language',
+    reason: 'You sent an inappropriate message (swearing at someone).',
+    deleteOffending: l.deleteMessage,
+    decide: (key) => {
+      const prior = recentOffences(key, cfg, { hours: l.lookbackHours, kinds: ['language_warn', 'language'] }).length;
+      if (prior === 0) {
+        return { prior, warnOnly: true, offenceKind: 'language_warn', title: 'Auto Mod: Language Warning' };
+      }
+      return {
+        prior,
+        ms: durationFor(prior - 1, l.targeted.timeoutMinutes, l.targeted.repeatAddMinutes),
+        offenceKind: 'language',
+      };
+    },
   });
   return true;
 }
@@ -438,6 +570,7 @@ async function checkMessage(message) {
 
   if (await checkEveryone(message, cfg)) return;
   if (await checkMentions(message, cfg)) return;
+  if (await checkLanguage(message, cfg)) return;
   await checkSpam(message, cfg);
 }
 
