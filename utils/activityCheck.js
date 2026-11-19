@@ -16,9 +16,8 @@ const WARN_CHANNEL_ID = '1558783436565782598';
 
 // role to ping -> emoji the bot reacts with (and shows next to the role)
 const ROLES = [
-  { id: '1526936584253997146', emoji: '\u{1F535}', shown: '\u{1F535}' },        // 🔵
-  { id: '1544889213982482472', emoji: '\u{1F7E2}', shown: '\u{1F7E2}' },        // 🟢
-  { id: '1547853856640344084', emoji: '\u26AA', shown: '\u26AA\uFE0F' },        // ⚪️
+  { id: '1526936584253997146', emoji: '\u{1F535}', shown: '\u{1F535}' },        // 🔵 Staff
+  { id: '1544889213982482472', emoji: '\u{1F7E2}', shown: '\u{1F7E2}' },        // 🟢 Ticket Staff
 ];
 
 // people with any of these roles don't need to react
