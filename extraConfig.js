@@ -195,7 +195,7 @@ module.exports = {
     manualOnlyRoleIds: [],
 
     // Where the weekly management report goes. Falls back to the staff log channel.
-    reportChannelId: 'PUT_MANAGEMENT_REPORT_CHANNEL_ID_HERE',
+    reportChannelId: '1558783436565782598',
 
     // Role given to the Staff of the Week (placeholder until you make the role).
     staffOfTheWeekRoleId: 'PUT_STAFF_OF_THE_WEEK_ROLE_ID_HERE',
@@ -256,17 +256,20 @@ module.exports = {
   },
 
   // ---------------------------------------------------------------
-  // WEEKLY STAFF STATUS POST
-  // Posts the live staff status (promotions on track, demotions, Staff of the
-  // Week pick, top scores) once a week on a random day at the set time.
+  // AUTOMATIC WEEKLY ACTIVITY CHECK
+  // The bot posts the normal activity check (pings the staff roles, they must
+  // react) in channelId once a week on a random day at the set time. The
+  // results, warnings and strikes still go to the strikes channel
+  // (WARN_CHANNEL_ID in utils/activityCheck.js) 5 hours later, as before.
   // firstPostAt is used once (bot timezone), then it is random every week.
   // ---------------------------------------------------------------
-  staffStatusPost: {
+  activityCheckAuto: {
     enabled: true,
     channelId: '1558777181633515610',
     timezone: 'Australia/Sydney',
     hour: 17,
     minute: 0,
-    firstPostAt: '2026-11-19T17:40',
+    firstPostAt: '2026-11-19T17:56',
   },
+
 };
