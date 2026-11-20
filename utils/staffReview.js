@@ -131,8 +131,8 @@ function plan({ week, weekStart, weekEnd, guildId, roster, now = Date.now() }) {
     const stats = store.weekStats(week, userId);
     const active = store.activeDays(stats);
     const conduct = conductFor(userId, weekStart, weekEnd, now);
-    const result = scoring.scoreWeek(stats, active, { warns: conduct.warns, strikes: conduct.strikes });
     const prot = protection(userId, weekStart);
+    const result = scoring.scoreWeek(stats, active, { warns: conduct.warns, strikes: conduct.strikes }, undefined, prot.counted);
 
     const entry = {
       rank: info.rankKey,
@@ -239,7 +239,7 @@ function plan({ week, weekStart, weekEnd, guildId, roster, now = Date.now() }) {
       entry.reason = `Score ${result.score} is low, but ${prot.counted} staff points this week keeps them safe from warnings and strikes.`;
     } else {
       entry.rec = 'NEEDS IMPROVEMENT';
-      entry.reason = `Score ${result.score} is below the minimum (${prot.counted}/${prot.needed} staff points this week). No automatic action, management follow-up suggested.${gapNote(entry)}`;
+      entry.reason = `Score ${result.score} is below the minimum (${prot.counted}/${prot.needed} staff points this week). No automatic action, management follow-up suggested.`;
     }
 
     // Candidates for Staff of the Week.
@@ -276,7 +276,7 @@ function plan({ week, weekStart, weekEnd, guildId, roster, now = Date.now() }) {
       reason: winner
         ? `Highest qualifying score (${winner.score}) with ${winner.kinds} kinds of contribution.`
         : qualifiers.length === 0
-          ? 'Nobody met the requirements (strong week, score 75+, clean conduct and steady recent weeks).'
+          ? `Nobody met the requirements (strong week, score ${cfg.staffOfTheWeek.minScore}+, clean conduct and steady recent weeks).`
           : '',
     },
     report: { parts: 0, sent: 0, done: false },
@@ -284,10 +284,8 @@ function plan({ week, weekStart, weekEnd, guildId, roster, now = Date.now() }) {
 }
 
 function gapNote(entry) {
-  const gaps = [];
-  if (entry.stats.giveaways < cfg.giveaways.expectedPerWeek) gaps.push('no giveaway hosted (1 per week expected)');
-  if (entry.stats.activeDays < cfg.scoring.minActiveDaysForStrong) gaps.push(`only ${entry.stats.activeDays} active days`);
-  return gaps.length ? ` Gaps: ${gaps.join(', ')}.` : '';
+  const need = cfg.protection.points - (entry.points || 0);
+  return need > 0 ? ` Needs ${Math.ceil(need)} more points this week to be safe.` : '';
 }
 
 /* =========================================================
