@@ -84,6 +84,13 @@ module.exports = {
 
       giveaway.winners = winners;
       giveaway.claimed = []; // new winners, nobody has claimed yet
+
+      // New winners get a fresh claim time. Without this the old deadline stayed
+      // and the new winner's button said "Claim Time Up" straight away.
+      giveaway.claimDeadline = null;
+      giveaway.claimExpiredShown = false;
+      delete giveaway.claimBase;
+
       giveaways[id] = giveaway;
       saveGiveaways(giveaways);
 
@@ -101,12 +108,12 @@ module.exports = {
       }
 
       // The new winners get their own Claim Prize button.
-      await interaction.reply(
-        box(
-          `🎉 New winner${winners.length > 1 ? 's' : ''} for **${giveaway.prize}**: ${winners.map((w) => `<@${w}>`).join(', ')}`,
-          { rows: [buildClaimRow(id, giveaway)] }
-        )
-      );
+      // Plain text like the normal winner message, so the claim countdown can update it.
+      await interaction.reply({
+        content: `🎉 New winner${winners.length > 1 ? 's' : ''} for **${giveaway.prize}**: ${winners.map((w) => `<@${w}>`).join(', ')}`,
+        components: [buildClaimRow(id, giveaway)],
+        allowedMentions: { users: winners },
+      });
 
       const reply = await interaction.fetchReply().catch(() => null);
       rememberClaimMessage(id, reply);
