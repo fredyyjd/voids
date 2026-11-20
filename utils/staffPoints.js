@@ -246,7 +246,13 @@ function buildBoard(scope, view = 'points', ephemeral = false) {
   return { embeds: [embed], components: [buildMenu(scope, ephemeral)], allowedMentions: { parse: [] } };
 }
 
+function pointsFor(userId, scope = 'weekly') {
+  const entry = getBucket(scope)[userId];
+  return entry ? entry.points || 0 : 0;
+}
+
 module.exports = {
+  pointsFor,
   POINTS,
   VIEWS,
   record,
