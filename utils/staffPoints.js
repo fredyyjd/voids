@@ -8,6 +8,7 @@ const extra = require('../extraConfig');
 const config = require('../config.json');
 const { COLOR } = require('./theme');
 const { hasMaxPerms, isSupport, isMod } = require('./permissions');
+const staffCfg = require('./staffConfig');
 
 const cfg = extra.staffPoints || {};
 
@@ -246,12 +247,38 @@ function buildBoard(scope, view = 'points', ephemeral = false) {
   return { embeds: [embed], components: [buildMenu(scope, ephemeral)], allowedMentions: { parse: [] } };
 }
 
+// Points that count towards being safe from automatic warnings / strikes.
+// Schematic posts only count up to protection.postPointsMax, so 15 points can't
+// all come from posting schematics. weekStart picks a finished week (the one
+// being reviewed); leave it out for the current week.
+function protection(userId, weekStart = null) {
+  rollWeek();
+
+  const rule = staffCfg.protection || { points: 15, postPointsMax: 5 };
+  let entry = null;
+
+  if (weekStart && weekStart !== store.get('weekStart')) {
+    const last = store.get('lastWeek');
+    entry = last && last.weekStart === weekStart ? (last.users || {})[userId] : null;
+  } else {
+    entry = (store.get('weekly') || {})[userId];
+  }
+
+  const e = entry || {};
+  const total = e.points || 0;
+  const postPoints = (e.posts || 0) * POINTS.post;
+  const counted = Math.round((total - postPoints + Math.min(postPoints, rule.postPointsMax)) * 100) / 100;
+
+  return { total, counted, needed: rule.points, safe: counted >= rule.points };
+}
+
 function pointsFor(userId, scope = 'weekly') {
   const entry = getBucket(scope)[userId];
   return entry ? entry.points || 0 : 0;
 }
 
 module.exports = {
+  protection,
   pointsFor,
   POINTS,
   VIEWS,
