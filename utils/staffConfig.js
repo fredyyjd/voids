@@ -31,20 +31,21 @@ const DEFAULTS = {
   // Staff with enough points in a week are safe from automatic warnings and
   // strikes. Schematic posts can only make up postPointsMax of those points,
   // so the rest has to come from tickets (closes, claims, renames).
-  protection: { points: 15, postPointsMax: 5 },
+  protection: { points: 10, postPointsMax: 5 },
 
+  // The weekly score comes straight from the staff points:
+  // score = counted points / pointsPerScore (2 = 1 score for every 2 points).
+  // Warns and strikes take a little off. A week is "ok" from okScore and
+  // "strong" (counts towards promotion) from strongScore.
   scoring: {
-    targets: { messages: 50, activeDays: 5, tickets: 6, schematics: 4, duties: 4 },
-    weights: { consistency: 25, messages: 15, tickets: 25, giveaways: 10, schematics: 10, duties: 15 },
-    giveawayBonusEach: 2.5,
-    giveawayBonusMax: 5,
-    warnPenalty: 3,
-    strikePenalty: 15,
-    strongScore: 62,
-    okScore: 30,
-    minActiveDaysForStrong: 3,
-    minMessagesForStrong: 10,
-    minContributionKinds: 2,
+    pointsPerScore: 2,
+    warnPenalty: 1,
+    strikePenalty: 3,
+    strongScore: 10,
+    okScore: 5,
+    minActiveDaysForStrong: 0,
+    minMessagesForStrong: 0,
+    minContributionKinds: 0,
   },
 
   // everyWeeks: promotion is only reviewed when the weeks spent at the rank
@@ -60,7 +61,7 @@ const DEFAULTS = {
   conduct: { warnLookbackDays: 10, strikeLookbackWeeks: 3 },
   strikes: { expiryDays: 60 },
 
-  staffOfTheWeek: { minScore: 75, cooldownWeeks: 3, equalMargin: 8, cleanWeeks: 4, minHistoryWeeks: 2, minConsistency: 0.75 },
+  staffOfTheWeek: { minScore: 15, cooldownWeeks: 3, equalMargin: 3, cleanWeeks: 4, minHistoryWeeks: 2, minConsistency: 0.75 },
 
   maxDowntimeHoursForPromotions: 12,
   historyWeeks: 26,
