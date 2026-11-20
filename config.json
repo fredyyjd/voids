@@ -30,8 +30,7 @@
   "welcomeChannelId": "1526915443326062735",
   "leaveChannelId": "1526915443326062735",
   "ticketRoleIds": [
-    "1526936584253997146",
-    "1544889213982482472"
+    "1526936584253997146"
   ],
   "applicationTicketRoleIds": [
     "1540606063911510086"
@@ -245,22 +244,6 @@
         "What servers would you target to partner with?",
         "Would you remain active and complete your responsibilities as a Partner Manager?",
         "Are you okay with being on a 1-week trial and needing to get 3 partners to become a full Partner Manager?"
-      ]
-    },
-    {
-      "id": "ticket staff",
-      "label": "tickets staff",
-      "description": "Apply to join the ticket staff team",
-      "emoji": "🎟️",
-      "color": "#3B82F6",
-      "questions": [
-        "What is your Discord username and ID?",
-        "How long have you been using Discord?",
-        "What are the first things you do when a ticket is open",
-        "Would you remain active and complete your responsibilities as a ticket staff?",
-        "do you have staff experience? if so list them?",
-        "why did you apply here?",
-        "Are you okay with being on a 1-week trial and needing to handle a couple tickets to become a full ticket staff?"
       ]
     },
     {
