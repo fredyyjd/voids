@@ -28,17 +28,22 @@ const DEFAULTS = {
   giveaways: { minEntrants: 3, minRuntimeSeconds: 300, expectedPerWeek: 1 },
   schematics: { maxPerDay: 10 },
 
+  // Staff with enough points in a week are safe from automatic warnings and
+  // strikes. Schematic posts can only make up postPointsMax of those points,
+  // so the rest has to come from tickets (closes, claims, renames).
+  protection: { points: 15, postPointsMax: 5 },
+
   scoring: {
-    targets: { messages: 60, activeDays: 5, tickets: 8, schematics: 4, duties: 4 },
+    targets: { messages: 50, activeDays: 5, tickets: 6, schematics: 4, duties: 4 },
     weights: { consistency: 25, messages: 15, tickets: 25, giveaways: 10, schematics: 10, duties: 15 },
     giveawayBonusEach: 2.5,
     giveawayBonusMax: 5,
-    warnPenalty: 5,
-    strikePenalty: 20,
-    strongScore: 70,
-    okScore: 40,
-    minActiveDaysForStrong: 4,
-    minMessagesForStrong: 15,
+    warnPenalty: 3,
+    strikePenalty: 15,
+    strongScore: 62,
+    okScore: 30,
+    minActiveDaysForStrong: 3,
+    minMessagesForStrong: 10,
     minContributionKinds: 2,
   },
 
@@ -46,13 +51,13 @@ const DEFAULTS = {
   // are a multiple of this. strongWeeks: consecutive strong weeks required.
   promotion: {
     trial: { everyWeeks: 2, strongWeeks: 2 },
-    helper: { everyWeeks: 1, strongWeeks: 3 },
-    srhelper: { everyWeeks: 2, strongWeeks: 4 },
-    mod: { everyWeeks: 2, strongWeeks: 4 },
-    srmod: { everyWeeks: 1, strongWeeks: 6 },
+    helper: { everyWeeks: 1, strongWeeks: 2 },
+    srhelper: { everyWeeks: 2, strongWeeks: 3 },
+    mod: { everyWeeks: 2, strongWeeks: 3 },
+    srmod: { everyWeeks: 1, strongWeeks: 4 },
   },
 
-  conduct: { warnLookbackDays: 14, strikeLookbackWeeks: 4 },
+  conduct: { warnLookbackDays: 10, strikeLookbackWeeks: 3 },
   strikes: { expiryDays: 60 },
 
   staffOfTheWeek: { minScore: 75, cooldownWeeks: 3, equalMargin: 8, cleanWeeks: 4, minHistoryWeeks: 2, minConsistency: 0.75 },
