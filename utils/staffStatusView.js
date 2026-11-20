@@ -44,6 +44,7 @@ function tag(e) {
   if (e.loa) return 'On LOA';
   if (e.rec === 'NEEDS IMPROVEMENT') return 'At risk';
   if (e.strong) return 'Strong';
+  if (e.safe) return 'Safe';
   return 'On track';
 }
 
@@ -53,7 +54,10 @@ async function buildStaffEmbed(guild) {
 
   const promos = reviewed.filter(([, e]) => e.decision?.type === 'promote');
   const demos = reviewed.filter(([, e]) => e.decision && e.decision.type !== 'promote');
-  const risk = reviewed.filter(([id, e]) => !e.decision && !e.loa && (e.rec === 'NEEDS IMPROVEMENT' || flags(id, e).length));
+  // 15+ points this week = safe from warnings, unless they already hold a valid strike.
+  const risk = reviewed.filter(
+    ([id, e]) => !e.decision && !e.loa && ((!e.safe && (e.rec === 'NEEDS IMPROVEMENT' || flags(id, e).length)) || e.conduct.valid > 0)
+  );
   const onLoa = reviewed.filter(([, e]) => e.loa).length;
   const strong = reviewed.filter(([, e]) => e.strong).length;
   const average = reviewed.length ? Math.round(reviewed.reduce((n, [, e]) => n + e.score, 0) / reviewed.length) : 0;
