@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const { Routes } = require('discord.js');
 const { hasBypassRole } = require('./staffBypass');
+const staffPoints = require('./staffPoints');
 
 /* =========================================================
    SETTINGS
@@ -77,8 +78,9 @@ function resetMissed(userId) {
   writeJson(MISSED_FILE, data);
 }
 
-// 1-3 missed = warnings, 4 = 1 strike, 5 = 2 strikes, 6 = 3 strikes ...
-const strikesFor = (missed) => Math.max(0, missed - 3);
+// 1-4 missed = warnings, 5 = 1 strike, 6 = 2 strikes, 7 = 3 strikes ...
+const WARNINGS_BEFORE_STRIKE = 4;
+const strikesFor = (missed) => Math.max(0, missed - WARNINGS_BEFORE_STRIKE);
 
 /* =========================================================
    STARTING A CHECK
@@ -178,8 +180,8 @@ async function fetchReactorIds(client, rec) {
 ========================================================= */
 
 function buildWarningLine(userId, missed) {
-  if (missed <= 3) {
-    return `<@${userId}> - \u26A0\uFE0F **Warning ${missed}/3** (missed ${missed} activity check${missed === 1 ? '' : 's'})`;
+  if (missed <= WARNINGS_BEFORE_STRIKE) {
+    return `<@${userId}> - \u26A0\uFE0F **Warning ${missed}/${WARNINGS_BEFORE_STRIKE}** (missed ${missed} activity check${missed === 1 ? '' : 's'})`;
   }
 
   const strikes = strikesFor(missed);
@@ -243,9 +245,17 @@ async function finalizeCheck(client, messageId) {
     }
 
     const lines = [];
+    const safeLines = [];
     for (const member of missing.values()) {
+      // Enough staff points this week = no warning or strike for this miss.
+      const prot = staffPoints.protection(member.id);
+      if (prot.safe) {
+        safeLines.push(`<@${member.id}> - \u2705 didn't react, but has **${prot.counted} points** this week so no warning`);
+        continue;
+      }
       lines.push(buildWarningLine(member.id, addMissed(member.id)));
     }
+    lines.push(...safeLines);
 
     const header =
       `# activity check results\n` +
