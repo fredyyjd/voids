@@ -45,6 +45,9 @@ const LOG_CHANNELS = {
 
 function clip(text, max = 1000) {
 
+  // Embed field values can't be longer than 1024.
+  max = Math.min(max, 1024);
+
   if (!text) {
     return 'None';
   }
