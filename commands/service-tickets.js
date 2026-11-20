@@ -1,7 +1,6 @@
 const { MessageFlags } = require('discord.js');
 const {
   SlashCommandBuilder,
-  EmbedBuilder,
   ActionRowBuilder,
   StringSelectMenuBuilder,
 } = require('discord.js');
@@ -23,12 +22,10 @@ module.exports = {
       return interaction.reply({ content: 'No services set up yet.', flags: MessageFlags.Ephemeral });
     }
 
-    const embed = new EmbedBuilder()
-      .setDescription(config.servicePanel?.description || 'Pick a service to open a ticket.')
-      .setColor(config.servicePanel?.color || '#3B82F6')
-      .setFooter({ text: config.servicePanel?.footer || 'Voids Services' });
-
-    if (config.servicePanel?.title) embed.setTitle(config.servicePanel.title);
+    // Plain text message (not an embed): the panel text, then the footer line.
+    const text = config.servicePanel?.description || 'Pick a service to open a ticket.';
+    const footer = config.servicePanel?.footer || 'Voids Services';
+    const content = `${text}\n\n-# ${footer}`.slice(0, 2000);
 
     const menu = new StringSelectMenuBuilder()
       .setCustomId('service_ticket_category_select')
@@ -43,7 +40,7 @@ module.exports = {
       );
 
     await interaction.channel.send({
-      embeds: [embed],
+      content,
       components: [new ActionRowBuilder().addComponents(menu)],
     });
     await interaction.reply({ content: 'Panel posted.', flags: MessageFlags.Ephemeral });
