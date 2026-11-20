@@ -38,6 +38,13 @@ function flags(id, e) {
   return out;
 }
 
+// "16 pts" or, when schematic posts are capped, "16 pts (9 count)".
+function ptsText(id, e) {
+  const total = points.pointsFor(id);
+  const counted = e.points ?? total;
+  return counted !== total ? `${total} pts (${counted} count)` : `${total} pts`;
+}
+
 function tag(e) {
   if (e.decision?.type === 'promote') return 'Promotion';
   if (e.decision) return 'Demotion';
@@ -54,9 +61,9 @@ async function buildStaffEmbed(guild) {
 
   const promos = reviewed.filter(([, e]) => e.decision?.type === 'promote');
   const demos = reviewed.filter(([, e]) => e.decision && e.decision.type !== 'promote');
-  // 15+ points this week = safe from warnings, unless they already hold a valid strike.
+  // 15+ points that count this week = safe from warnings, so never listed here.
   const risk = reviewed.filter(
-    ([id, e]) => !e.decision && !e.loa && ((!e.safe && (e.rec === 'NEEDS IMPROVEMENT' || flags(id, e).length)) || e.conduct.valid > 0)
+    ([id, e]) => !e.decision && !e.loa && !e.safe && (e.rec === 'NEEDS IMPROVEMENT' || flags(id, e).length)
   );
   const onLoa = reviewed.filter(([, e]) => e.loa).length;
   const strong = reviewed.filter(([, e]) => e.strong).length;
@@ -88,7 +95,8 @@ async function buildStaffEmbed(guild) {
       name: `At risk of a warning (${risk.length})`,
       value: lines(
         risk,
-        ([id, e]) => `<@${id}> · score ${e.score}${flags(id, e).length ? ` · ${flags(id, e).join(', ')}` : ''}`,
+        ([id, e]) =>
+          `<@${id}> · score ${e.score} · ${ptsText(id, e)}${flags(id, e).length ? ` · ${flags(id, e).join(', ')}` : ''}`,
         '*Nobody right now*'
       ),
     }
@@ -107,7 +115,7 @@ async function buildStaffEmbed(guild) {
   const ranked = [...reviewed].sort(([, a], [, b]) => b.score - a.score);
   const rows = ranked.slice(0, 24);
   const row = ([id, e], i) =>
-    `**${i + 1}.** <@${id}> · ${e.rankLabel}\n${bar(e.score)} **${e.score}** · ${points.pointsFor(id)} pts · ${tag(e)}`;
+    `**${i + 1}.** <@${id}> · ${e.rankLabel}\n${bar(e.score)} **${e.score}** · ${ptsText(id, e)} · ${tag(e)}`;
 
   for (let start = 0; start < rows.length; start += 6) {
     const chunk = rows.slice(start, start + 6);
@@ -127,7 +135,7 @@ async function buildStaffEmbed(guild) {
   if (notes.length) embed.addFields({ name: 'Notes', value: clip(notes.join('\n')) });
 
   return embed
-    .setFooter({ text: 'Live preview, nothing is applied until the weekly review runs' })
+    .setFooter({ text: '15 counted points a week = safe from warnings (schematic posts count up to 5) · Live preview' })
     .setTimestamp();
 }
 
