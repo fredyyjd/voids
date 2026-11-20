@@ -55,7 +55,7 @@ const DEFAULTS = {
   conduct: { warnLookbackDays: 14, strikeLookbackWeeks: 4 },
   strikes: { expiryDays: 60 },
 
-  staffOfTheWeek: { minScore: 75, cooldownWeeks: 3, equalMargin: 8, cleanWeeks: 4 },
+  staffOfTheWeek: { minScore: 75, cooldownWeeks: 3, equalMargin: 8, cleanWeeks: 4, minHistoryWeeks: 2, minConsistency: 0.75 },
 
   maxDowntimeHoursForPromotions: 12,
   historyWeeks: 26,
