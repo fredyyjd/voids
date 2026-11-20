@@ -198,7 +198,7 @@ module.exports = {
     reportChannelId: '1558783436565782598',
 
     // Role given to the Staff of the Week (placeholder until you make the role).
-    staffOfTheWeekRoleId: 'PUT_STAFF_OF_THE_WEEK_ROLE_ID_HERE',
+    staffOfTheWeekRoleId: '1539558447966847066',
     // true = bypass-role holders may also be picked as Staff of the Week.
     staffOfTheWeekAllowBypass: false,
 
