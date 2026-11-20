@@ -88,8 +88,8 @@ module.exports = {
   staff: {
     warnsPerStrike: 3,
     strikesForDemotion: 2,
-    // Where strikes / warns are logged. Falls back to modLogChannelId.
-    logChannelId: '',
+    // Where strikes / warns are logged (same channel as the automatic results).
+    logChannelId: '1558783436565782598',
     // Roles pinged when someone hits the demotion line. Falls back to adminRoleIds.
     alertRoleIds: [],
   },
