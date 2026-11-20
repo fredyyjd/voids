@@ -254,7 +254,7 @@ function buildBoard(scope, view = 'points', ephemeral = false) {
 function protection(userId, weekStart = null) {
   rollWeek();
 
-  const rule = staffCfg.protection || { points: 15, postPointsMax: 5 };
+  const rule = staffCfg.protection || { points: 10, postPointsMax: 5 };
   let entry = null;
 
   if (weekStart && weekStart !== store.get('weekStart')) {
