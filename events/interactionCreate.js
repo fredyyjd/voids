@@ -476,14 +476,19 @@ function buildQuestionsModal(category) {
   questions
     .slice(0, 5)
     .forEach((question, i) => {
+      // A question is a string, or { label, placeholder, short } for a hint under it.
+      const q = typeof question === 'string' ? { label: question } : question;
+
       const input = new TextInputBuilder()
         .setCustomId(`q_${i}`)
         .setLabel(
-          String(question).slice(0, 45)
+          String(q.label).slice(0, 45)
         )
-        .setStyle(TextInputStyle.Paragraph)
+        .setStyle(q.short ? TextInputStyle.Short : TextInputStyle.Paragraph)
         .setRequired(true)
         .setMaxLength(1000);
+
+      if (q.placeholder) input.setPlaceholder(String(q.placeholder).slice(0, 100));
 
       modal.addComponents(
         new ActionRowBuilder().addComponents(input)
@@ -778,7 +783,7 @@ module.exports = {
 
         const answers = questions.map(
           (question, i) => ({
-            question,
+            question: typeof question === 'string' ? question : question.label,
 
             answer:
               interaction.fields.getTextInputValue(
