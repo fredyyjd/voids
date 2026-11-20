@@ -139,9 +139,8 @@
   ],
   "servicePanel": {
     "title": "",
-    "description": "<:221885minecraftletterv:1540303544005951499> <:971161minecraftlettero:1540303809199472650> <:551854minecraftletteri:1540303701527236659> <:925443minecraftletterd:1540303655423709204> <:54759minecraftletters:1540697982553427998> <:419254minecraftletterc:1540697736847032320> <:971161minecraftlettero:1540303809199472650> <:221885minecraftletterv:1540303544005951499> <:447990minecraftlettere:1540303580806905906>\n<:54759minecraftletters:1540697982553427998> <:447990minecraftlettere:1540303580806905906> <:973150minecraftletterr:1540304338898001980> <:221885minecraftletterv:1540303544005951499> <:551854minecraftletteri:1540303701527236659> <:419254minecraftletterc:1540697736847032320> <:447990minecraftlettere:1540303580806905906> <:54759minecraftletters:1540697982553427998>\n\n\n# **<:500913house:1540691352000659486> building service**\n\n- **Open a ticket if you need a base built from a schematic.**\n- -# **Send the schematic file or link.**\n\n\n\n# **<:927346endcrystal:1540691299902951515>  regear service**\n\n- **Get regear shulks made by our regear team | pay the cost of the shulks +20% on top of that.**\n\n\n# **<:234951minecraftdiamondshovel:1540691325815627778> digging service**\n\n- **Please provide L x W x H. Also make sure to read <#1540949443187052544>**",
-    "color": "#3B82F6",
-    "footer": "Voids Services"
+    "description": "<:221885minecraftletterv:1540303544005951499> <:971161minecraftlettero:1540303809199472650> <:551854minecraftletteri:1540303701527236659> <:925443minecraftletterd:1540303655423709204> <:54759minecraftletters:1540697982553427998> <:419254minecraftletterc:1540697736847032320> <:971161minecraftlettero:1540303809199472650> <:221885minecraftletterv:1540303544005951499> <:447990minecraftlettere:1540303580806905906>\n<:54759minecraftletters:1540697982553427998> <:447990minecraftlettere:1540303580806905906> <:973150minecraftletterr:1540304338898001980> <:221885minecraftletterv:1540303544005951499> <:551854minecraftletteri:1540303701527236659> <:419254minecraftletterc:1540697736847032320> <:447990minecraftlettere:1540303580806905906> <:54759minecraftletters:1540697982553427998>\n\n# **<:500913house:1540691352000659486> building service**\n\n**Open a ticket if you need a base built from a schematic.**\n-# **Send the schematic file or link.**\n\n# **<:927346endcrystal:1540691299902951515>  regear service**\n\n**Get regear shulks made by our regear team | pay the cost of the shulks +20% on top of that.**\n\n# **<:234951minecraftdiamondshovel:1540691325815627778> digging service**\n\n**Please provide L x W x H. Also make sure to read <#1573235956339707944>**",
+    "footer": "Voids Services - Only pay IGN = dinkletoes36"
   },
   "serviceCategories": [
     {
@@ -151,6 +150,13 @@
       "emoji": "<:500913house:1540691352000659486>",
       "roleIds": [
         "1573229460004675615"
+      ],
+      "questions": [
+        {
+          "label": "Would you like priority? (+20%)",
+          "placeholder": "yes or no",
+          "short": true
+        }
       ]
     },
     {
@@ -169,6 +175,13 @@
       "emoji": "<:234951minecraftdiamondshovel:1540691325815627778>",
       "roleIds": [
         "1573229460004675615"
+      ],
+      "questions": [
+        {
+          "label": "Would you like priority? (+20%)",
+          "placeholder": "Pricing is 1000 per block dug. Please provide the L x W x H in the ticket",
+          "short": true
+        }
       ]
     }
   ],
@@ -409,5 +422,7 @@
   ],
   "eventCategoryId": "1563771432163614820",
   "eventLogChannelId": "PUT_EVENT_LOG_CHANNEL_ID_HERE",
-  "eventPingRoleId": "PUT_EVENT_PING_ROLE_ID_HERE"
+  "eventPingRoleId": "PUT_EVENT_PING_ROLE_ID_HERE",
+  "servicePayText": "Pay IGN = dinkletoes36 only\n/bal dinkletoes36\n/pay dinkletoes36\n/bal dinkletoes36\nthen send a screenshot of it!",
+  "serviceTos": "# Service TOS ( Terms Of Service )\n## Building Service\nWhen opened make sure to send the schematic your budget and if you would like priority ( + 15% if priority is wanted )\n\n## Regear Service\nGet regear shulkers made of your hot bar and inventory you pay the price of all the regear shulkers made and +20% on top as are staffs payment\n\n## Digging Service\nProvide the L x W x H are pricing is L x W x H x 1000 per block dug\nif you would like priority ( + 15% if priority is wanted )\n\n### always pay dinkletoes36 not the staff if you pay the staff it’s not on us if you get scammed\n\n### Refund policy\nIf the base gets raided after 1 day you will not get a refund if the builder gets fired or can’t build anymore you will get a refund\n\n**Create a ticket above this message!**"
 }
