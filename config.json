@@ -133,14 +133,15 @@
       ]
     }
   ],
-  "serviceTicketCategoryId": "1540667930893877278",
+  "serviceTicketCategoryId": "1573230312320802856",
   "serviceTicketRoleIds": [
-    "1540668070345838592"
+    "1573229460004675615"
   ],
   "servicePanel": {
     "title": "",
-    "description": "<:221885minecraftletterv:> <:971161minecraftlettero:> <:551854minecraftletteri:> <:925443minecraftletterd:> <:54759minecraftletters:> <:419254minecraftletterc:> <:971161minecraftlettero:> <:221885minecraftletterv:> <:447990minecraftlettere:>\n**services**\n\n<:500913house:> **building service**\nOpen a ticket if you need a base built from a schematic.\nSend the schematic file or link.\n⚡️ **Rush priority**\n+12% extra for priority.\nPlease read our <#1540949443187052544>\n\n<:927346endcrystal:> **regear service**\nGet regear shulks made by our regear team | pay the cost of the shulks +20% on top of that.\n\n<:234951minecraftdiamondshovel:> **digging service**\nPlease provide L x W x H",
-    "color": "#3B82F6"
+    "description": "<:221885minecraftletterv:1540303544005951499> <:971161minecraftlettero:1540303809199472650> <:551854minecraftletteri:1540303701527236659> <:925443minecraftletterd:1540303655423709204> <:54759minecraftletters:1540697982553427998> <:419254minecraftletterc:1540697736847032320> <:971161minecraftlettero:1540303809199472650> <:221885minecraftletterv:1540303544005951499> <:447990minecraftlettere:1540303580806905906>\n<:54759minecraftletters:1540697982553427998> <:447990minecraftlettere:1540303580806905906> <:973150minecraftletterr:1540304338898001980> <:221885minecraftletterv:1540303544005951499> <:551854minecraftletteri:1540303701527236659> <:419254minecraftletterc:1540697736847032320> <:447990minecraftlettere:1540303580806905906> <:54759minecraftletters:1540697982553427998>\n\n\n# **<:500913house:1540691352000659486> building service**\n\n- **Open a ticket if you need a base built from a schematic.**\n- -# **Send the schematic file or link.**\n\n\n\n# **<:927346endcrystal:1540691299902951515>  regear service**\n\n- **Get regear shulks made by our regear team | pay the cost of the shulks +20% on top of that.**\n\n\n# **<:234951minecraftdiamondshovel:1540691325815627778> digging service**\n\n- **Please provide L x W x H. Also make sure to read <#1540949443187052544>**",
+    "color": "#3B82F6",
+    "footer": "Voids Services"
   },
   "serviceCategories": [
     {
@@ -149,16 +150,7 @@
       "description": "Get a schematic built (stashes, farms and more)",
       "emoji": "<:500913house:1540691352000659486>",
       "roleIds": [
-        "1540894256497958972"
-      ]
-    },
-    {
-      "id": "digging_service",
-      "label": "Digging Service",
-      "description": "Get a hole dug — go see our prices",
-      "emoji": "<:234951minecraftdiamondshovel:1540691325815627778>",
-      "roleIds": [
-        "1540895318240133219"
+        "1573229460004675615"
       ]
     },
     {
@@ -167,7 +159,16 @@
       "description": "Get regear machines made, or regear shulkers.",
       "emoji": "<:927346endcrystal:1540691299902951515>",
       "roleIds": [
-        "1540894539206754357"
+        "1573229460004675615"
+      ]
+    },
+    {
+      "id": "digging_service",
+      "label": "Digging Service",
+      "description": "Get a hole dug — go see our prices",
+      "emoji": "<:234951minecraftdiamondshovel:1540691325815627778>",
+      "roleIds": [
+        "1573229460004675615"
       ]
     }
   ],
@@ -247,6 +248,25 @@
         "do you have staff experience? if so list them?",
         "why did you apply here?",
         "Are you okay with being on a 1-week trial and needing to handle a couple tickets to become a full ticket staff?"
+      ]
+    },
+    {
+      "id": "building staff",
+      "label": "Building Staff",
+      "description": "Apply to join the building team",
+      "emoji": "🧱",
+      "color": "#3B82F6",
+      "questions": [
+        "What is your Minecraft IGN, your balance on DonutSMP and your playtime?",
+        "Do you have experience as a builder? If so, send the server and what role you had.",
+        "Send the builds you have done that you made on DonutSMP (NOT your own world).",
+        "Have you used Litematica before?",
+        "What is your Discord username and ID?",
+        "How long have you been using Discord?",
+        "What kinds of builds are you best at (stashes, farms, regear bases, etc.)?",
+        "How many hours a week can you spend building?",
+        "Would you stay active and finish the builds you take on?",
+        "Are you okay with being on a 1-week trial before becoming full building staff?"
       ]
     }
   ],
