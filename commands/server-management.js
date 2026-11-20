@@ -36,47 +36,52 @@ function buildServerEmbed() {
   const s = modStats.summary();
   const cfg = autoMod.settings();
 
-  const kindLines = Object.entries(modStats.KINDS).map(([key, label]) => {
-    const row = s.perKind[key];
-    return `**${label}**\n24h **${row.day}** · 7 days **${row.week}** (${row.weekUsers.size} people) · all time **${row.all}**`;
-  });
-
   const embed = new EmbedBuilder()
     .setColor(GREEN)
-    .setTitle('Server protection')
+    .setTitle('Server Protection')
     .setDescription(
-      `Tracking since ${stamp(s.since, 'D')}\n` +
-        `Last 24 hours **${s.totalDay}** · last 7 days **${s.totalWeek}** · all time **${s.totalAll}**\n` +
-        `People caught: **${s.uniqueWeek}** this week · **${s.uniqueAll}** all time`
-    )
-    .addFields({ name: 'Triggers', value: clip(kindLines.join('\n\n')) });
+      `Tracking since ${stamp(s.since, 'D')}\n\n` +
+        `**${s.totalDay}** in the last 24 hours · **${s.totalWeek}** this week · **${s.totalAll}** all time\n` +
+        `**${s.uniqueWeek}** people caught this week · **${s.uniqueAll}** all time`
+    );
 
-  embed.addFields({
-    name: 'Most triggered this week',
-    value: lines(s.topWeek, ([id, n]) => `<@${id}> · ${n} time${n === 1 ? '' : 's'}`, '*Nobody triggered anything this week*'),
-  });
+  for (const [key, label] of Object.entries(modStats.KINDS)) {
+    const row = s.perKind[key];
+    if (!row) continue;
+    embed.addFields({
+      name: label,
+      value: `Today **${row.day}**\nWeek **${row.week}** (${row.weekUsers.size} people)\nAll time **${row.all}**`,
+      inline: true,
+    });
+  }
 
-  embed.addFields({
-    name: 'Latest',
-    value: lines(
-      s.latest,
-      (e) => `${stamp(e.t)} · ${modStats.KINDS[e.k] || e.k} · <@${e.u}>${e.ok === false ? ' (punishment failed)' : ''}`,
-      '*Nothing yet*'
-    ),
-  });
+  embed.addFields(
+    {
+      name: 'Most triggered this week',
+      value: lines(s.topWeek, ([id, n], i) => `**${i + 1}.** <@${id}> · ${n} time${n === 1 ? '' : 's'}`, '*Nobody triggered anything this week*'),
+    },
+    {
+      name: 'Latest',
+      value: lines(
+        s.latest,
+        (e) => `${stamp(e.t)} · ${modStats.KINDS[e.k] || e.k} · <@${e.u}>${e.ok === false ? ' (punishment failed)' : ''}`,
+        '*Nothing yet*'
+      ),
+    }
+  );
 
-  const on = (v) => (v ? 'on' : 'off');
+  const on = (v) => (v ? 'On' : 'Off');
   embed.addFields({
-    name: 'Settings right now',
+    name: 'Settings',
     value:
-      `Auto moderation **${on(cfg.enabled)}** (beta)\n` +
-      `Spam ${on(cfg.spam.enabled)}: ${cfg.spam.messages} msgs / ${cfg.spam.windowSeconds}s → ${cfg.spam.timeoutMinutes}m timeout\n` +
-      `@everyone / @here ${on(cfg.everyone.enabled)}: ${cfg.everyone.timeoutMinutes}m timeout\n` +
-      `Mentions ${on(cfg.mentions.enabled)}: over ${cfg.mentions.maxUsersPerMessage} people or ${cfg.mentions.maxRolesPerMessage} roles → ${cfg.mentions.timeoutMinutes}m timeout\n` +
+      `**Auto moderation** ${on(cfg.enabled)} (beta)\n` +
+      `Spam ${on(cfg.spam.enabled)} · ${cfg.spam.messages} messages in ${cfg.spam.windowSeconds}s · ${cfg.spam.timeoutMinutes}m timeout\n` +
+      `@everyone / @here ${on(cfg.everyone.enabled)} · ${cfg.everyone.timeoutMinutes}m timeout\n` +
+      `Mass mentions ${on(cfg.mentions.enabled)} · over ${cfg.mentions.maxUsersPerMessage} people or ${cfg.mentions.maxRolesPerMessage} roles · ${cfg.mentions.timeoutMinutes}m timeout\n` +
       `Repeat offences inside ${cfg.repeatLookbackHours}h add time to the timeout`,
   });
 
-  return embed.setTimestamp();
+  return embed.setFooter({ text: 'Updates live, press Refresh' }).setTimestamp();
 }
 
 async function render(interaction, view) {
