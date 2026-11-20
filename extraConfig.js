@@ -272,4 +272,28 @@ module.exports = {
     firstPostAt: '2026-11-19T17:56',
   },
 
+  // ---------------------------------------------------------------
+  // STAFF NICKNAMES
+  // When someone gets (or loses) one of these roles their nickname becomes
+  // "Prefix | Original Name". The highest role in the list wins, so keep the
+  // list ordered from highest to lowest. Losing every role removes the prefix.
+  // ---------------------------------------------------------------
+  staffNicknames: {
+    enabled: true,
+    separator: ' | ',
+    roles: [
+      { roleId: '1568172068061712505', prefix: 'Head. Manager' },
+      { roleId: '1540606063911510086', prefix: 'Manager' },
+      { roleId: '1545714291913527357', prefix: 'Assistant. Manager' },
+      { roleId: '1568171902973902888', prefix: 'Head. Admin' },
+      { roleId: '1526913207665688697', prefix: 'Sr. Admin' },
+      { roleId: '1492834161042522213', prefix: 'Admin' },
+      { roleId: '1526911450466222203', prefix: 'Sr. Mod' },
+      { roleId: '1492833649123393676', prefix: 'Mod' },
+      { roleId: '1526913846776692776', prefix: 'Sr. Helper' },
+      { roleId: '1526912674649083936', prefix: 'Helper' },
+      { roleId: '1547853612607348766', prefix: 'Trial. S' },
+      { roleId: '1544889213982482472', prefix: 'T. Staff' },
+    ],
+  },
 };
