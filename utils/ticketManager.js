@@ -480,10 +480,15 @@ async function createTicket(
     }
 
     if (isServiceTicket(categoryId)) {
-      parts.push('-# Voids Services');
+      parts.push(`-# ${config.servicePanel?.footer || 'Voids Services'}`);
     }
 
     await channel.send(box(parts, { rows: [buildTicketControlRow()] }));
+
+    // Service tickets: payment instructions in normal text right after the embed.
+    if (isServiceTicket(categoryId) && config.servicePayText) {
+      await channel.send({ content: String(config.servicePayText).slice(0, 2000) }).catch(() => {});
+    }
 
     if (categoryId === 'giveaway_claim' && options && options.giveawayClaim) {
       const gc = options.giveawayClaim;
