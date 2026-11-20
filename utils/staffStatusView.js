@@ -1,14 +1,14 @@
 const { EmbedBuilder } = require('discord.js');
-const staffCfg = require('./staffConfig');
 const review = require('./staffReview');
 const points = require('./staffPoints');
+const activity = require('./activityCheck');
 
 const BLUE = 0x3b82f6;
 
 const clip = (text, max = 1000) => (text.length > max ? `${text.slice(0, max - 3)}...` : text);
 const stamp = (ms, style = 'R') => `<t:${Math.floor(ms / 1000)}:${style}>`;
 
-function lines(rows, fmt, empty = '*Nobody right now*') {
+function lines(rows, fmt, empty = '*Nobody*') {
   if (!rows.length) return empty;
   const out = [];
   let size = 0;
@@ -24,76 +24,107 @@ function lines(rows, fmt, empty = '*Nobody right now*') {
   return out.join('\n');
 }
 
+function bar(score) {
+  const filled = Math.max(0, Math.min(10, Math.round(score / 10)));
+  return `${'▰'.repeat(filled)}${'▱'.repeat(10 - filled)}`;
+}
+
+function flags(id, e) {
+  const out = [];
+  const missed = activity.getMissed(id);
+  if (e.conduct.valid) out.push(`${e.conduct.valid} strike${e.conduct.valid === 1 ? '' : 's'}`);
+  if (e.conduct.warns) out.push(`${e.conduct.warns} warn${e.conduct.warns === 1 ? '' : 's'}`);
+  if (missed) out.push(`missed ${missed} check${missed === 1 ? '' : 's'}`);
+  return out;
+}
+
+function tag(e) {
+  if (e.decision?.type === 'promote') return 'Promotion';
+  if (e.decision) return 'Demotion';
+  if (e.loa) return 'On LOA';
+  if (e.rec === 'NEEDS IMPROVEMENT') return 'At risk';
+  if (e.strong) return 'Strong';
+  return 'On track';
+}
+
 async function buildStaffEmbed(guild) {
   const draft = await review.preview(guild);
-  const all = Object.entries(draft.entries);
-  const reviewed = all.filter(([, e]) => !e.exempt && e.rank);
+  const reviewed = Object.entries(draft.entries).filter(([, e]) => !e.exempt && e.rank);
+
   const promos = reviewed.filter(([, e]) => e.decision?.type === 'promote');
   const demos = reviewed.filter(([, e]) => e.decision && e.decision.type !== 'promote');
-  const attention = reviewed.filter(([, e]) => e.rec === 'NEEDS IMPROVEMENT');
-  const strong = reviewed.filter(([, e]) => e.strong && !e.decision);
-  const onLoa = all.filter(([, e]) => e.loa).length;
-  const exempt = all.filter(([, e]) => e.exempt).length;
-
+  const risk = reviewed.filter(([id, e]) => !e.decision && !e.loa && (e.rec === 'NEEDS IMPROVEMENT' || flags(id, e).length));
+  const onLoa = reviewed.filter(([, e]) => e.loa).length;
+  const strong = reviewed.filter(([, e]) => e.strong).length;
   const average = reviewed.length ? Math.round(reviewed.reduce((n, [, e]) => n + e.score, 0) / reviewed.length) : 0;
-  const top = [...reviewed].sort(([, a], [, b]) => b.score - a.score).slice(0, 5);
 
   const embed = new EmbedBuilder()
     .setColor(BLUE)
-    .setTitle('Staff right now')
+    .setTitle('Staff Overview')
     .setDescription(
-      `Week started ${stamp(draft.weekStart, 'D')} · review runs ${stamp(points.nextResetMs())}\n` +
-        `Looking at **${reviewed.length}** staff · exempt **${exempt}** · on LOA **${onLoa}**\n` +
-        `Average score **${average}** · strong weeks so far **${reviewed.filter(([, e]) => e.strong).length}**`
+      `Week of ${stamp(draft.weekStart, 'D')} · review runs ${stamp(points.nextResetMs())}\n\n` +
+        `**${reviewed.length}** staff · **${promos.length}** promotions · **${demos.length}** demotions · **${risk.length}** at risk · **${onLoa}** on LOA\n` +
+        `Average score **${average}** · **${strong}** having a strong week`
     );
 
   embed.addFields(
     {
-      name: `⬆️ Looking like promotions (${promos.length})`,
-      value: lines(promos, ([id, e]) => `<@${id}> · ${e.rankLabel} → ${e.rec.replace('PROMOTE to ', '')}`, '*Nobody is on track for a promotion this week*'),
+      name: `Promotions (${promos.length})`,
+      value: lines(
+        promos,
+        ([id, e]) => `<@${id}> · ${e.rankLabel} to **${e.rec.replace('PROMOTE to ', '')}** · score ${e.score}`,
+        '*Nobody is on track for a promotion yet*'
+      ),
     },
     {
-      name: `⬇️ Looking like demotions (${demos.length})`,
-      value: lines(demos, ([id, e]) => `<@${id}> · ${e.rankLabel} → ${e.rec.replace('DEMOTE to ', '')}`, '*None*'),
+      name: `Demotions (${demos.length})`,
+      value: lines(demos, ([id, e]) => `<@${id}> · ${e.rankLabel} to **${e.rec.replace('DEMOTE to ', '')}** · ${e.reason}`, '*Nobody*'),
+    },
+    {
+      name: `At risk of a warning (${risk.length})`,
+      value: lines(
+        risk,
+        ([id, e]) => `<@${id}> · score ${e.score}${flags(id, e).length ? ` · ${flags(id, e).join(', ')}` : ''}`,
+        '*Nobody right now*'
+      ),
     }
   );
 
   const sotw = draft.sotw;
-  const runnersUp = top.filter(([id]) => id !== sotw.winner).slice(0, 3);
-  let sotwText = sotw.winner
-    ? `**<@${sotw.winner}>** is the pick right now.\n${sotw.reason}`
-    : `Nobody qualifies right now.\n${sotw.reason || ''}`.trim();
-  if (runnersUp.length) {
-    sotwText += `\nClosest: ${runnersUp.map(([id, e]) => `<@${id}> (${e.score})`).join(', ')}`;
-  }
-  if (!staffCfg.staffOfTheWeekRoleId) {
-    sotwText += '\n-# The Staff of the Week role is not set yet, so nobody gets the role.';
-  }
-  embed.addFields({ name: '🏆 Staff of the Week (right now)', value: clip(sotwText) });
+  embed.addFields({
+    name: 'Staff of the Week',
+    value: clip(
+      sotw.winner
+        ? `<@${sotw.winner}> looks like the pick right now.\n${sotw.reason || ''}`.trim()
+        : `Nobody qualifies yet.\n${sotw.reason || ''}`.trim()
+    ),
+  });
 
-  embed.addFields(
-    {
-      name: 'Top scores',
-      value: lines(top, ([id, e], i) => `${i + 1}. <@${id}> · ${e.rankLabel} · **${e.score}**${e.strong ? ' (strong)' : ''}`, '*No data yet*'),
-    },
-    {
-      name: `⚠️ Needs attention (${attention.length})`,
-      value: lines(attention, ([id, e]) => `<@${id}> · ${e.rankLabel} · score ${e.score} · ${e.stats.msgs} msgs, ${e.stats.activeDays} active days`, '*Nobody*'),
-    },
-    {
-      name: 'On a strong week but not promoted yet',
-      value: lines(strong.slice(0, 20), ([id, e]) => `<@${id}> · ${e.rankLabel} · ${e.score}`, '*Nobody*'),
-    }
-  );
+  const ranked = [...reviewed].sort(([, a], [, b]) => b.score - a.score);
+  const rows = ranked.slice(0, 24);
+  const row = ([id, e], i) =>
+    `**${i + 1}.** <@${id}> · ${e.rankLabel}\n${bar(e.score)} **${e.score}** · ${points.pointsFor(id)} pts · ${tag(e)}`;
+
+  for (let start = 0; start < rows.length; start += 6) {
+    const chunk = rows.slice(start, start + 6);
+    embed.addFields({
+      name: start === 0 ? 'Scores and points' : '\u200b',
+      value: clip(chunk.map((entry, i) => row(entry, start + i)).join('\n')),
+    });
+  }
+  if (!rows.length) embed.addFields({ name: 'Scores and points', value: '*No activity tracked yet*' });
+  if (ranked.length > rows.length) embed.addFields({ name: '\u200b', value: `*...and ${ranked.length - rows.length} more*` });
 
   const notes = [];
   if (draft.degraded) notes.push('The bot was offline for a lot of this week, so promotions and Staff of the Week would be skipped.');
-  const problems = review.diagnostics(guild);
-  if (problems.length) notes.push(`Setup: ${problems.slice(0, 4).join(' · ')}`);
-  notes.push('This is a live preview. Nothing is applied until the weekly review runs.');
-  embed.addFields({ name: 'Notes', value: clip(notes.join('\n')) });
+  const problems = review.diagnostics(guild).filter((p) => !/staff of the week/i.test(p));
+  if (problems.length) notes.push(problems.slice(0, 3).join(' · '));
 
-  return embed.setTimestamp();
+  if (notes.length) embed.addFields({ name: 'Notes', value: clip(notes.join('\n')) });
+
+  return embed
+    .setFooter({ text: 'Live preview, nothing is applied until the weekly review runs' })
+    .setTimestamp();
 }
 
 module.exports = { buildStaffEmbed, lines, clip, stamp };
