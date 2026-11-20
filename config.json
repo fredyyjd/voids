@@ -84,6 +84,11 @@
     },
     {
       "id": "spawner_buy",
+      "roleIds": [
+        "1526936584253997146",
+        "1526913504668287026",
+        "1547869336486551643"
+      ],
       "label": "Spawner Buy",
       "description": "Buy spawners from staff",
       "emoji": "<:Emojis_32x32_360:1545306696107429909>",
@@ -94,6 +99,11 @@
     },
     {
       "id": "spawner_sell",
+      "roleIds": [
+        "1526936584253997146",
+        "1526913504668287026",
+        "1547869336486551643"
+      ],
       "label": "Spawner Sell",
       "description": "Sell spawners to staff",
       "emoji": "<:Emojis_32x32_360:1545306696107429909>",
