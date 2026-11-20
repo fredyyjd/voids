@@ -479,6 +479,10 @@ async function createTicket(
       }
     }
 
+    if (isServiceTicket(categoryId)) {
+      parts.push('-# Voids Services');
+    }
+
     await channel.send(box(parts, { rows: [buildTicketControlRow()] }));
 
     if (categoryId === 'giveaway_claim' && options && options.giveawayClaim) {
