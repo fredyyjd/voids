@@ -7,7 +7,7 @@ const store = require('./staffStore');
 const scoring = require('./staffScoring');
 const activityCheck = require('./activityCheck');
 const { hasBypassRole } = require('./staffBypass');
-const { weekStartFor } = require('./staffPoints');
+const { weekStartFor, protection } = require('./staffPoints');
 
 const DAY = 24 * 60 * 60 * 1000;
 const BLUE = 0x3b82f6;
@@ -132,6 +132,7 @@ function plan({ week, weekStart, weekEnd, guildId, roster, now = Date.now() }) {
     const active = store.activeDays(stats);
     const conduct = conductFor(userId, weekStart, weekEnd, now);
     const result = scoring.scoreWeek(stats, active, { warns: conduct.warns, strikes: conduct.strikes });
+    const prot = protection(userId, weekStart);
 
     const entry = {
       rank: info.rankKey,
@@ -145,6 +146,8 @@ function plan({ week, weekStart, weekEnd, guildId, roster, now = Date.now() }) {
         valid: conduct.valid.length,
       },
       score: result.score,
+      points: prot.counted,
+      safe: prot.safe,
       strong: result.strong,
       ok: result.ok,
       kinds: result.kinds,
@@ -231,9 +234,12 @@ function plan({ week, weekStart, weekEnd, guildId, roster, now = Date.now() }) {
     } else if (result.ok) {
       entry.rec = 'MAINTAIN';
       entry.reason = `Acceptable week (${result.score}), not strong enough to count towards promotion.${gapNote(entry)}`;
+    } else if (prot.safe) {
+      entry.rec = 'MAINTAIN';
+      entry.reason = `Score ${result.score} is low, but ${prot.counted} staff points this week keeps them safe from warnings and strikes.`;
     } else {
       entry.rec = 'NEEDS IMPROVEMENT';
-      entry.reason = `Score ${result.score} is below the minimum. No automatic action, management follow-up suggested.${gapNote(entry)}`;
+      entry.reason = `Score ${result.score} is below the minimum (${prot.counted}/${prot.needed} staff points this week). No automatic action, management follow-up suggested.${gapNote(entry)}`;
     }
 
     // Candidates for Staff of the Week.
