@@ -3,28 +3,16 @@ const cfg = require('./staffConfig');
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const ratio = (value, target) => (target > 0 ? clamp(value / target, 0, 1) : 1);
 
-// stats: a week of activity (see staffStore.blank). conduct: { warns, strikes } issued that week.
-function scoreWeek(stats, activeDays, conduct = { warns: 0, strikes: 0 }, sc = cfg.scoring) {
-  const { targets, weights } = sc;
-  const expected = cfg.giveaways.expectedPerWeek;
-
+// Weekly score = counted staff points / pointsPerScore (default: 1 score per 2 points).
+// countedPoints comes from staffPoints.protection(). Warns and strikes issued that week take a little off.
+// stats is still used for the "kinds" of contribution (tickets, giveaways, schematics, duties).
+function scoreWeek(stats, activeDays, conduct = { warns: 0, strikes: 0 }, sc = cfg.scoring, countedPoints = 0) {
   const tickets = stats.handled + stats.closed;
   const duties = stats.mod + stats.events;
 
-  const parts = {
-    consistency: ratio(activeDays, targets.activeDays) * weights.consistency,
-    messages: ratio(stats.msgs, targets.messages) * weights.messages,
-    tickets: ratio(tickets, targets.tickets) * weights.tickets,
-    // One giveaway meets the expectation. More only adds a small capped bonus.
-    giveaways: stats.giveaways >= expected ? weights.giveaways : 0,
-    schematics: ratio(stats.schematics, targets.schematics) * weights.schematics,
-    duties: ratio(duties, targets.duties) * weights.duties,
-  };
-
-  const bonus = clamp(Math.max(stats.giveaways - expected, 0) * sc.giveawayBonusEach, 0, sc.giveawayBonusMax);
+  const base = countedPoints / (sc.pointsPerScore || 2);
   const penalty = conduct.warns * sc.warnPenalty + conduct.strikes * sc.strikePenalty;
-  const total = Object.values(parts).reduce((a, b) => a + b, 0) + bonus - penalty;
-  const score = Math.round(clamp(total, 0, 100));
+  const score = Math.round(clamp(base - penalty, 0, 100) * 10) / 10;
 
   // Kinds of real contribution besides chatting.
   const kinds = [tickets >= 2, stats.giveaways >= 1, stats.schematics >= 1, duties >= 1].filter(Boolean).length;
@@ -38,7 +26,7 @@ function scoreWeek(stats, activeDays, conduct = { warns: 0, strikes: 0 }, sc = c
 
   return {
     score,
-    parts,
+    parts: { points: base },
     kinds,
     activeDays,
     tickets,
