@@ -240,7 +240,8 @@ function plan({ week, weekStart, weekEnd, guildId, roster, now = Date.now() }) {
     const sotw = cfg.staffOfTheWeek;
     const cons = scoring.consistency(history);
     const clear = conduct.valid.length === 0 && conduct.recentStrikes === 0 && conduct.warns === 0;
-    if (!degraded && !entry.decision && clear && result.strong && result.score >= sotw.minScore) {
+    const steady = cons.of >= sotw.minHistoryWeeks && cons.ok / cons.of >= sotw.minConsistency;
+    if (!degraded && !entry.decision && clear && steady && result.strong && result.score >= sotw.minScore) {
       qualifiers.push({
         userId,
         score: result.score,
@@ -269,7 +270,7 @@ function plan({ week, weekStart, weekEnd, guildId, roster, now = Date.now() }) {
       reason: winner
         ? `Highest qualifying score (${winner.score}) with ${winner.kinds} kinds of contribution.`
         : qualifiers.length === 0
-          ? 'Nobody met the minimum activity, performance and conduct requirements.'
+          ? 'Nobody met the requirements (strong week, score 75+, clean conduct and steady recent weeks).'
           : '',
     },
     report: { parts: 0, sent: 0, done: false },
