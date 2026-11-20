@@ -313,4 +313,5 @@ module.exports = {
   getMissed,
   resetMissed,
   strikesFor,
+  WARNINGS_BEFORE_STRIKE,
 };
