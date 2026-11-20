@@ -244,7 +244,7 @@ function lookupEmbed(user, member) {
     {
       name: 'Activity checks missed',
       value: missed
-        ? `**${missed}** missed · ${Math.min(missed, 3)} warning${Math.min(missed, 3) === 1 ? '' : 's'} · ${activity.strikesFor(missed)} strike${activity.strikesFor(missed) === 1 ? '' : 's'}`
+        ? `**${missed}** missed · ${Math.min(missed, activity.WARNINGS_BEFORE_STRIKE)} warning${Math.min(missed, activity.WARNINGS_BEFORE_STRIKE) === 1 ? '' : 's'} · ${activity.strikesFor(missed)} strike${activity.strikesFor(missed) === 1 ? '' : 's'}`
         : '*None*',
     },
     { name: 'Staff points this week', value: `**${points.pointsFor(user.id)}**`, inline: true },
@@ -259,7 +259,8 @@ function activityEmbed(user, member) {
   const week = store.weekKey();
   const stats = store.weekStats(week, user.id);
   const days = store.activeDays(stats);
-  const res = scoring.scoreWeek(stats, days);
+  const prot = points.protection(user.id);
+  const res = scoring.scoreWeek(stats, days, undefined, undefined, prot.counted);
   const history = store.getHistory(user.id).slice(-4);
   const exempt = hasBypassRole(member);
 
@@ -269,7 +270,7 @@ function activityEmbed(user, member) {
     .setThumbnail(user.displayAvatarURL({ size: 128 }))
     .setDescription(
       (exempt ? 'Exempt from automatic promotion, demotion, strikes and timeouts.\n\n' : '') +
-        `Score so far **${res.score}**${res.strong ? ' (strong week)' : ''}`
+        `Score so far **${res.score}**${res.strong ? ' (strong week)' : ''} · ${prot.counted} counted points${prot.safe ? ' · safe from warnings' : ` · needs ${Math.ceil(prot.needed - prot.counted)} more to be safe`}`
     )
     .addFields(
       { name: 'Messages', value: `${stats.msgs}`, inline: true },
