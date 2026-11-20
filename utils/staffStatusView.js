@@ -2,6 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const review = require('./staffReview');
 const points = require('./staffPoints');
 const activity = require('./activityCheck');
+const cfg = require('./staffConfig');
 
 const BLUE = 0x3b82f6;
 
@@ -25,7 +26,7 @@ function lines(rows, fmt, empty = '*Nobody*') {
 }
 
 function bar(score) {
-  const filled = Math.max(0, Math.min(10, Math.round(score / 10)));
+  const filled = Math.max(0, Math.min(10, Math.round(score / 2))); // a full bar = 20 score
   return `${'▰'.repeat(filled)}${'▱'.repeat(10 - filled)}`;
 }
 
@@ -135,7 +136,7 @@ async function buildStaffEmbed(guild) {
   if (notes.length) embed.addFields({ name: 'Notes', value: clip(notes.join('\n')) });
 
   return embed
-    .setFooter({ text: '15 counted points a week = safe from warnings (schematic posts count up to 5) · Live preview' })
+    .setFooter({ text: `${cfg.protection.points} counted points a week = safe from warnings · score = points ÷ ${cfg.scoring.pointsPerScore} · Live preview` })
     .setTimestamp();
 }
 
