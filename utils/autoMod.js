@@ -633,4 +633,4 @@ function startCleanup() {
   }, 5 * MIN).unref?.();
 }
 
-module.exports = { checkMessage, handlesEveryone, startCleanup, settings };
+module.exports = { checkMessage, handlesEveryone, startCleanup, settings, sendLog };
