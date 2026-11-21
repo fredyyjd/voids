@@ -77,7 +77,8 @@ function guardTarget(guild, client, author, target) {
   if (target.id === author.id) throw new UserError("You can't do that to yourself.");
   if (target.id === client.user.id) throw new UserError("You can't do that to me.");
   if (target.id === guild.ownerId) throw new UserError("You can't do that to the owner.");
-  if (author.id !== guild.ownerId && !canModerate(author, target)) {
+  const adminOnAdmin = hasMaxPerms(author) && hasMaxPerms(target);
+  if (author.id !== guild.ownerId && !adminOnAdmin && !canModerate(author, target)) {
     throw new UserError('Their role is the same as or above yours.');
   }
 }
@@ -167,6 +168,7 @@ async function runTimeout(ctx) {
       const member = await ctx.guild.members.fetch(id).catch(() => null);
       if (!member) throw new UserError("They aren't in the server.");
       guardTarget(ctx.guild, ctx.client, author, member);
+      if (hasMaxPerms(member)) throw new UserError("Discord doesn't allow timing out anyone with the Administrator permission.");
       if (!member.moderatable) throw new UserError('Their role is above mine.');
       await member.timeout(ms, `${reason} | by ${author.user.tag}`.slice(0, 450));
       return `for ${formatMs(ms)}`;
