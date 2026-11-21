@@ -4,6 +4,7 @@ const extra = require('../extraConfig');
 const { isBypassUser } = require('./staffBypass');
 const { handlesEveryone } = require('./autoMod');
 const modStats = require('./modStats');
+const requestPing = require('./requestPing');
 
 /* =========================================================
    PING GUARD
@@ -150,7 +151,7 @@ async function checkPings(message) {
   const entry = { t: Date.now(), channelId: message.channelId, messageId: message.id };
 
   // mentions.everyone is only true when the ping really went out.
-  if (message.mentions.everyone && cfg.everyoneLimit > 0 && !handlesEveryone(message)) {
+  if (message.mentions.everyone && cfg.everyoneLimit > 0 && !handlesEveryone(message) && !requestPing.authorizes(message)) {
     const hits = record(everyoneHits, key, entry, cfg.everyoneWindow);
     if (hits.length >= cfg.everyoneLimit) return punish(message, 'everyone', hits, cfg);
   }
