@@ -30,4 +30,14 @@ function getWarnings(userId) {
   return data[userId] || [];
 }
 
-module.exports = { addWarning, getWarnings };
+function removeWarning(userId) {
+  const data = loadWarnings();
+  if (!data[userId] || !data[userId].length) return null;
+  data[userId].pop();
+  const left = data[userId].length;
+  if (!left) delete data[userId];
+  saveWarnings(data);
+  return left;
+}
+
+module.exports = { addWarning, getWarnings, removeWarning };
