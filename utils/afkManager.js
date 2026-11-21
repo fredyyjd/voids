@@ -82,6 +82,7 @@ async function clearAfk(message) {
 // messageCreate hook: removes afk when the person types, answers pings to afk people.
 async function handleAfk(message) {
   if (!message.guild || message.author.bot) return;
+  if (/^v!afk(\s|$)/i.test(message.content || '')) return;
 
   // 1. the author came back
   if (data[key(message.guild.id, message.author.id)]) {
