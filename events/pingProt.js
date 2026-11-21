@@ -1,17 +1,27 @@
-const { handleInteraction, onMessage } = require('../utils/requestPing');
+const { MessageFlags } = require('discord.js');
+const { hasMaxPerms } = require('../utils/permissions');
+const pingProt = require('../utils/pingProt');
 
-// /request ping: the dropdown, the Accept / Deny buttons, and using up the
-// approved ping once the person sends it.
+// The remove buttons under the /ping prot panel.
 module.exports = {
-  name: 'requestPing',
+  name: 'pingProtPanel',
 
   register(client) {
-    client.on('interactionCreate', (interaction) => {
-      handleInteraction(interaction).catch((err) => console.error('[request] interaction error:', err));
-    });
+    client.on('interactionCreate', async (interaction) => {
+      try {
+        if (!interaction.isButton()) return;
+        const match = /^pprot_rm:(r|u):(\d+)$/.exec(interaction.customId);
+        if (!match) return;
 
-    client.on('messageCreate', (message) => {
-      onMessage(message).catch((err) => console.error('[request] message error:', err));
+        if (!hasMaxPerms(interaction.member)) {
+          return interaction.reply({ content: "You can't use this.", flags: MessageFlags.Ephemeral });
+        }
+
+        pingProt.remove(match[1] === 'r' ? 'role' : 'user', match[2]);
+        await interaction.update(await pingProt.buildPanel(interaction.guild));
+      } catch (err) {
+        console.error('[ping prot] panel error:', err);
+      }
     });
   },
 };
