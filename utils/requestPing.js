@@ -31,6 +31,8 @@ const HOUR = 60 * 60 * 1000;
 const GREEN = 0x57f287;
 const RED = 0xed4245;
 
+const trigger = () => String(cfg().pingNowTrigger || '...pingnow').trim().toLowerCase();
+
 const validId = (id) => typeof id === 'string' && /^\d{15,25}$/.test(id);
 
 // Every ping you can request. Role pings use the ids from extraConfig.request.roles.
@@ -150,7 +152,7 @@ function buildInfoEmbed() {
     .setDescription(
       `${lines.join('\n\n')}\n\n` +
         'Pick the ping you want from the dropdown.\n\n' +
-        "-# It sends a request to management. If it gets accepted you can use your @ ping once, anymore and you will need to request again."
+        `-# It sends a request to management. If it gets accepted I will DM you. Type \`${trigger()}\` and I will reply to your message with the ping. It works once, then you need to request again.`
     );
 }
 
@@ -178,7 +180,7 @@ async function startRequest(interaction) {
       content:
         live.status === 'pending'
           ? `You already have a request for **${label}** waiting on management.`
-          : `You still have an unused **${label}** ping. Use it first, then request again.`,
+          : `You still have an unused **${label}** ping. Type \`${trigger()}\` to use it, then request again.`,
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -311,7 +313,7 @@ async function handleSelect(interaction) {
           .setTitle('Request sent')
           .setDescription(
             `Your request for **${t.label}** is with management.\n\n` +
-              '-# If it gets accepted you can use that ping once. You can only have one request at a time.'
+              `-# If it gets accepted I will DM you. Then type \`${trigger()}\` and I will reply to your message with the ping. You can only have one request at a time.`
           ),
       ],
       components: [],
@@ -369,7 +371,7 @@ async function handleButton(interaction) {
   await interaction.update({ embeds: [embed], components: [buildReviewRow(requestId, true)] });
 
   const text = accept
-    ? `Your **${t.label}** ping request was accepted. You can use it once, then you will need to request again.`
+    ? `Your **${t.label}** ping request was accepted.\nType \`${trigger()}\` in any channel and I will reply to your message with the ping. It works once, then you will need to request again.`
     : `Your **${t.label}** ping request was denied.`;
 
   const requester = await interaction.client.users.fetch(req.userId).catch(() => null);
@@ -401,80 +403,61 @@ async function handleInteraction(interaction) {
    USING THE APPROVED PING
 ========================================================= */
 
-function stripCode(text) {
-  return String(text || '')
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/`[^`\n]*`/g, '');
-}
+const using = new Set();
 
-// Which of the request-able pings a message contains.
-function pingsIn(message) {
-  const text = stripCode(message.content);
-  const found = new Set();
-  if (/(^|[^\w])@everyone\b/i.test(text)) found.add('everyone');
-  if (/(^|[^\w])@here\b/i.test(text)) found.add('here');
-  for (const [key, t] of Object.entries(types())) {
-    if (t.roleId && text.includes(`<@&${t.roleId}>`)) found.add(key);
-  }
-  return found;
-}
+const authorizes = () => false;
+const grantedRoleId = () => null;
 
-// The grant this message is covered by, or null. The message must contain ONLY
-// the approved ping (no other request-able ping, no other role).
-// Stays true for the message that used the grant up, so checks that run
-// after it was used (auto mod, ping guard) still agree.
-function matchGrant(message) {
-  if (!message?.guild || !message.author || message.author.bot || message.webhookId) return null;
-  if (!/@everyone|@here|<@&/i.test(message.content || '')) return null;
+async function onMessage(message) {
+  if (!message?.guild || !message.author || message.author.bot || message.webhookId) return;
+
+  const content = String(message.content || '').trim().toLowerCase();
+  const full = trigger();
+  const bare = full.replace(/^\.+/, '');
+  if (content !== full && content !== bare) return;
+  if (using.has(message.author.id)) return;
 
   const now = Date.now();
   const req = Object.values(store.all()).find(
     (r) =>
       r.userId === message.author.id &&
+      r.guildId === message.guild.id &&
       r.status === 'accepted' &&
-      (r.usedMessageId === message.id || (!r.used && now < (r.expiresAt || 0)))
+      !r.used &&
+      now < (r.expiresAt || 0)
   );
-  if (!req) return null;
 
-  const found = pingsIn(message);
-  if (found.size !== 1 || !found.has(req.type)) return null;
-
-  const roleId = types()[req.type]?.roleId;
-  for (const id of message.mentions?.roles?.keys?.() || []) {
-    if (id !== roleId) return null;
+  if (!req) {
+    if (content === full) {
+      await message
+        .reply({ content: "You don't have an approved ping right now.", allowedMentions: { repliedUser: false } })
+        .catch(() => {});
+    }
+    return;
   }
-  return req;
-}
 
-const authorizes = (message) => Boolean(matchGrant(message));
+  using.add(message.author.id);
+  try {
+    req.used = true;
+    req.usedAt = now;
+    req.usedMessageId = message.id;
+    store.set(req.id, req);
 
-// For ping protection: the one role this message is allowed to ping.
-function grantedRoleId(message) {
-  const req = matchGrant(message);
-  return req ? types()[req.type]?.roleId || null : null;
-}
-
-// Runs on every message: uses the grant up, and sends the ping itself if
-// Discord didn't deliver it (e.g. the role isn't mentionable for them).
-async function onMessage(message) {
-  const req = matchGrant(message);
-  if (!req || req.used) return;
-
-  req.used = true;
-  req.usedAt = Date.now();
-  req.usedMessageId = message.id;
-  store.set(req.id, req);
-
-  const t = types()[req.type];
-  const delivered = t.roleId ? message.mentions.roles.has(t.roleId) : message.mentions.everyone;
-  if (delivered) return;
-
-  await message
-    .reply({
-      content: pingText(req.type),
-      allowedMentions: { ...allowedFor(req.type), repliedUser: false },
-    })
-    .catch((err) => console.error('[request] could not deliver the ping:', err.message));
+    await message
+      .reply({
+        content: pingText(req.type),
+        allowedMentions: { ...allowedFor(req.type), repliedUser: false },
+      })
+      .catch((err) => {
+        console.error('[request] could not deliver the ping:', err.message);
+        req.used = false;
+        delete req.usedAt;
+        delete req.usedMessageId;
+        store.set(req.id, req);
+      });
+  } finally {
+    using.delete(message.author.id);
+  }
 }
 
 module.exports = {
