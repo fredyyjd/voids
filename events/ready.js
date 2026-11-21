@@ -1,5 +1,6 @@
 const { rearmActiveGiveaways } = require('../utils/giveawayManager');
 const { startDailyGiveawayLoop } = require('../utils/dailyGiveaway');
+const { startScheduledGiveaways } = require('../utils/scheduledGiveaways');
 const { rearmTempBans } = require('../utils/tempBanManager');
 const { restoreOnStartup } = require('../utils/gamesLock');
 
@@ -15,6 +16,9 @@ module.exports = {
     rearmTempBans(client);
 
     startDailyGiveawayLoop(client);
+
+    // Saturday daily batch (11:28) + weekly giveaway (11:32).
+    startScheduledGiveaways(client);
 
     restoreOnStartup(client).catch((err) => console.error('[games] restore failed:', err));
 
