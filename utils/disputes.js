@@ -31,6 +31,7 @@ const REASONS = {
   spam: 'False timed out for spamming',
   everyone: 'False timed out for @here or @everyone ping',
   mentions: 'False timed out for mentioning too many people / roles',
+  ping_protection: 'False timed out for pinging a protected member',
   language: 'False timed out for inappropriate language',
   slur: 'False timed out for a filtered word / slur',
 };
