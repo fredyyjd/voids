@@ -1,5 +1,5 @@
 // =====================================================================
-// EXTRA FEATURE SETTINGS (schematics, partner pings, staff strikes, ping guard)
+// EXTRA FEATURE SETTINGS (schematics, /request ping, staff strikes, ping guard, scheduled giveaways)
 // Everything you'll want to edit for these features is in this file.
 // Any value that starts with PUT_ is treated as "not set yet".
 // =====================================================================
@@ -64,20 +64,34 @@ module.exports = {
   },
 
   // ---------------------------------------------------------------
-  // /partner ping
+  // /request ping
+  // Staff pick a ping, it goes to the management channel with Accept / Deny.
+  // If accepted they can use that one ping once (any channel), then they need
+  // to request again. Only one request / unused ping per person at a time.
+  // @everyone and @here have no role id, they are handled by text.
   // ---------------------------------------------------------------
-  partner: {
-    partnershipPingRoleId: '1536027286724157491',
-    memberRoleId: '1496446108279242762',
+  request: {
+    // Management channel the requests are sent to.
+    channelId: '1570188061441007666',
 
-    // @Member pings are sent here with Accept / Deny buttons first.
-    approvalChannelId: '1558837519276314725',
+    roles: {
+      member: '1496446108279242762',
+      announcement: '1540984622165393428',
+      staffStreams: '1561287313806467083',
+      partnership: '1536027286724157491',
+    },
 
-    // Optional: roles pinged on the approval message (management).
+    // An accepted ping that is not used within this many hours runs out.
+    grantHours: 24,
+
+    // Extra roles that can Accept / Deny (Administrators and the bypass roles always can).
+    reviewerRoleIds: [],
+
+    // Extra roles that can use /request ping (staff roles and Administrators already can).
+    requesterRoleIds: [],
+
+    // Optional: roles pinged on the request message.
     approvalPingRoleIds: [],
-
-    // Extra roles that can use /partner (staff are always allowed).
-    managerRoleIds: [],
   },
 
   // ---------------------------------------------------------------
@@ -242,6 +256,11 @@ module.exports = {
     // punishAttempts: true also catches the text when Discord blocked the real ping.
     everyone: { enabled: true, timeoutMinutes: 60, repeatAddMinutes: 60, punishAttempts: true },
 
+    // /ping prot: pinging a protected person, a protected role or someone with a
+    // protected role = message deleted + timeout (same DM + "Contact higher ups" as the rest).
+    // includeReplies: false = a reply that only pings through the reply button is ignored.
+    pingProt: { enabled: true, timeoutMinutes: 60, repeatAddMinutes: 0, includeReplies: false },
+
     // Too many people / roles mentioned (per message, and across a short window).
     mentions: {
       enabled: true,
@@ -252,6 +271,47 @@ module.exports = {
       maxRolesInWindow: 5,
       timeoutMinutes: 15,
       repeatAddMinutes: 15,
+    },
+  },
+
+  // ---------------------------------------------------------------
+  // SCHEDULED GIVEAWAYS (daily batch + weekly)
+  // day: 0 = Sunday ... 6 = Saturday. hour / minute are 24h in the timezone below.
+  // daily  = every Saturday the bot posts one giveaway per entry in durationsDays
+  //          (1,2,3,4,5 = they end 1, 2, 3, 4 and 5 days later, one winner a day).
+  // weekly = every Saturday one bigger giveaway that runs for durationDays.
+  // Winners get the normal Claim Prize button, with claimMinutes to press it.
+  // catchUpMinutes: if the bot was down at post time it still posts when it
+  // comes back inside this window, otherwise it waits for next week.
+  // ---------------------------------------------------------------
+  scheduledGiveaways: {
+    timezone: 'Australia/Sydney',
+    catchUpMinutes: 30,
+
+    daily: {
+      enabled: true,
+      channelId: '1532002698101002372',
+      pingRoleId: '1526927287486779566',
+      prize: '15m Donut SMP',
+      winnerCount: 1,
+      claimMinutes: 30,
+      day: 6,
+      hour: 11,
+      minute: 38,
+      durationsDays: [1, 2, 3, 4, 5],
+    },
+
+    weekly: {
+      enabled: true,
+      channelId: '1573488648559534222',
+      pingRoleId: '1526927249604083904',
+      prize: '50m Donut SMP',
+      winnerCount: 1,
+      claimMinutes: 30,
+      day: 6,
+      hour: 11,
+      minute: 42,
+      durationDays: 7,
     },
   },
 
