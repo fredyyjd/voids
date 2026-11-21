@@ -6,6 +6,8 @@ const { hasBypassRole } = require('./staffBypass');
 const modStats = require('./modStats');
 const langFilter = require('./langFilter');
 const disputes = require('./disputes');
+const requestPing = require('./requestPing');
+const pingProt = require('./pingProt');
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
@@ -50,6 +52,13 @@ const DEFAULTS = {
     maxRolesInWindow: 5,
     timeoutMinutes: 15,
     repeatAddMinutes: 15,
+  },
+  // /ping prot: pinging a protected person / role = message deleted + timeout.
+  pingProt: {
+    enabled: true,
+    timeoutMinutes: 60,
+    repeatAddMinutes: 0,
+    includeReplies: false,
   },
   // Swearing at someone ("fuck you", "fuck @user"): 1st time = warning DM only,
   // then a 10 minute timeout that grows by 10 minutes every time they do it again.
@@ -139,6 +148,7 @@ function handlesEveryone(message) {
     if (!cfg.enabled || !cfg.everyone.enabled) return false;
     if (!eligible(message)) return false;
     if (!everyoneUsed(message, cfg)) return false;
+    if (requestPing.authorizes(message)) return false;
     return !canMention(message, cfg);
   } catch {
     return false;
@@ -414,10 +424,37 @@ function countMentions(message) {
   return { users, roles, userIds: [...seen] };
 }
 
+async function checkProtectedPing(message, cfg) {
+  const p = cfg.pingProt;
+  if (!p.enabled) return false;
+  if (!message.mentions.users.size && !message.mentions.roles?.size) return false;
+
+  const hit = pingProt.findHits(message, {
+    includeReplies: p.includeReplies,
+    skipRoleId: requestPing.grantedRoleId(message),
+  });
+  if (!hit) return false;
+
+  const who = [...hit.roles.map((id) => `<@&${id}>`), ...hit.users.map((id) => `<@${id}>`)].join(' ');
+
+  await takeAction(message, cfg, {
+    kind: 'ping_protection',
+    title: 'Auto Mod: Protected Ping',
+    reason: 'You pinged someone who has ping protection.',
+    baseMinutes: p.timeoutMinutes,
+    addMinutes: p.repeatAddMinutes,
+    trackedEntries: [{ channelId: message.channelId, messageId: message.id, content: messageText(message) }],
+    extraFields: [{ name: 'Protected', value: clip(who, 1000) }],
+  });
+  return true;
+}
+
 async function checkEveryone(message, cfg) {
   if (!cfg.everyone.enabled) return false;
   if (!everyoneUsed(message, cfg)) return false;
   if (canMention(message, cfg)) return false;
+  // An @everyone / @here that management approved through /request ping (used once).
+  if (requestPing.authorizes(message)) return false;
 
   await takeAction(message, cfg, {
     kind: 'everyone',
@@ -568,6 +605,7 @@ async function checkMessage(message) {
     return;
   }
 
+  if (await checkProtectedPing(message, cfg)) return;
   if (await checkEveryone(message, cfg)) return;
   if (await checkMentions(message, cfg)) return;
   if (await checkLanguage(message, cfg)) return;
