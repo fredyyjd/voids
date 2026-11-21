@@ -428,7 +428,7 @@ async function onMessage(message) {
   );
 
   if (!req) {
-    if (content === full) {
+    if (content === full && canRequest(message.member)) {
       await message
         .reply({ content: "You don't have an approved ping right now.", allowedMentions: { repliedUser: false } })
         .catch(() => {});
