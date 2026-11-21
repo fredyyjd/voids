@@ -459,13 +459,16 @@ for (const command of COMMANDS) for (const name of command.names) lookup.set(nam
 
 const seen = new Set();
 
-async function finish(message, reply, embed) {
-  const payload = { content: null, embeds: [embed], allowedMentions: { parse: [] } };
-  if (reply) {
-    const edited = await reply.edit(payload).then(() => true).catch(() => false);
-    if (edited) return reply;
-  }
+async function sendEmbed(message, embed) {
+  const payload = { embeds: [embed], allowedMentions: { parse: [], repliedUser: false } };
+  const sent = await message.reply(payload).catch(() => null);
+  if (sent) return sent;
   return message.channel.send({ embeds: [embed], allowedMentions: { parse: [] } }).catch(() => null);
+}
+
+async function markDone(message, loading, ok) {
+  if (loading) await loading.users.remove(message.client.user.id).catch(() => {});
+  await message.react(ok ? TICK : CROSS).catch(() => {});
 }
 
 async function handle(message) {
@@ -496,19 +499,17 @@ async function handle(message) {
   };
 
   if (!command.can(member)) {
-    const denied = failure('No permission', "You can't use this command.");
-    await message
-      .reply({ embeds: [denied.embed], allowedMentions: { parse: [], repliedUser: false } })
-      .catch(() => {});
+    await message.react(CROSS).catch(() => {});
+    await sendEmbed(message, failure('No permission', "You can't use this command.").embed);
     return;
   }
 
-  let reply = null;
-  if (command.names[0] !== 'prefix') {
-    reply = await message
-      .reply({ content: LOADING, allowedMentions: { parse: [], repliedUser: false } })
-      .catch(() => null);
+  if (command.names[0] === 'prefix') {
+    await sendEmbed(message, runPrefix().embed);
+    return;
   }
+
+  const loading = await message.react(LOADING).catch(() => null);
 
   let result;
   try {
@@ -518,14 +519,8 @@ async function handle(message) {
     result = failure('Something went wrong', 'That command failed. Try again in a moment.');
   }
 
-  if (result.plain) {
-    await message
-      .reply({ embeds: [result.embed], allowedMentions: { parse: [], repliedUser: false } })
-      .catch(() => {});
-    return;
-  }
-
-  const sent = await finish(message, reply, result.embed);
+  await markDone(message, loading, result.embed.data.color !== RED);
+  const sent = await sendEmbed(message, result.embed);
 
   if (result.cleanup) {
     setTimeout(() => {
