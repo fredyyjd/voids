@@ -5,6 +5,7 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  StringSelectMenuBuilder,
 } = require('discord.js');
 const { COLOR } = require('./theme');
 const economy = require('./economy');
@@ -106,10 +107,14 @@ const isSplitSteal = (giveaway) => giveaway.type === 'splitsteal';
 
 const isVb = (giveaway) => giveaway.type === 'vb';
 
-function footerFor(giveaway) {
-  if (!giveaway.hostName) return isVb(giveaway) ? { text: VB_FOOTER } : null;
+const isShop = (giveaway) => giveaway.type === 'shop';
 
-  const footer = { text: `Hosted by ${giveaway.hostName}${isVb(giveaway) ? `  ·  ${VB_FOOTER}` : ''}` };
+const hasVbFooter = (giveaway) => isVb(giveaway) || isShop(giveaway);
+
+function footerFor(giveaway) {
+  if (!giveaway.hostName) return hasVbFooter(giveaway) ? { text: VB_FOOTER } : null;
+
+  const footer = { text: `Hosted by ${giveaway.hostName}${hasVbFooter(giveaway) ? `  ·  ${VB_FOOTER}` : ''}` };
   if (giveaway.hostAvatar) footer.iconURL = giveaway.hostAvatar;
   return footer;
 }
@@ -212,6 +217,8 @@ function buildGiveawayEmbed(giveaway) {
         ? ended ? '🤝 Split or Steal Ended' : '🤝 Split or Steal'
         : isVb(giveaway)
           ? ended ? '💰 VB Giveaway Ended' : '💰 VB Giveaway'
+          : isShop(giveaway)
+          ? ended ? 'Economy Giveaway Ended' : 'Economy Giveaway'
           : ended ? '🎉 Giveaway Ended' : '🎉 Giveaway',
     })
     .setDescription(lines.join('\n'));
@@ -352,6 +359,113 @@ function buildChoicePayload(messageId, giveaway, playerId) {
   );
 
   return { embeds: [embed], components: [row] };
+}
+
+
+/* =========================================================
+   SHOP GIVEAWAY PRIZES
+========================================================= */
+
+function itemLabel(key) {
+  const item = SHOP_ITEMS[key];
+  if (!item) return key;
+  return item.type === 'colour' ? `${item.emoji} ${item.name} colour` : `${item.emoji} ${item.name}`;
+}
+
+function grantShopItem(userId, key, amount = 1) {
+  const item = SHOP_ITEMS[key];
+  if (!item) return { ok: false };
+
+  if (item.type === 'entry') {
+    economy.addExtra(userId, amount);
+    return { ok: true };
+  }
+
+  if (item.type === 'colour') {
+    const owner = economy.user(userId);
+
+    if (owner.colours.includes(key)) {
+      economy.addVb(userId, item.price);
+      return { ok: true, refunded: item.price };
+    }
+
+    owner.colours.push(key);
+    economy.touch();
+    return { ok: true };
+  }
+
+  return { ok: false };
+}
+
+function buildPickRow(messageId) {
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(`shopgw_pick_${messageId}`)
+      .setPlaceholder('Pick your item')
+      .addOptions(
+        Object.entries(SHOP_ITEMS).map(([key, item]) => ({
+          label: item.type === 'colour' ? `${item.name} colour` : item.name,
+          value: key,
+          description: String(item.desc || '').slice(0, 100),
+          emoji: item.emoji,
+        }))
+      )
+  );
+}
+
+function buildPickContent(giveaway) {
+  const winners = giveaway.winners || [];
+  const picks = giveaway.picks || {};
+  const mentions = winners.map((id) => `<@${id}>`).join(', ');
+
+  const lines = [
+    `🎉 Congratulations ${mentions}! ${winners.length > 1 ? 'You each get' : 'You get'} to pick one item from the shop.`,
+    'Choose below and it goes straight into your inventory.',
+  ];
+
+  const picked = winners.filter((id) => picks[id]);
+  if (picked.length) lines.push('', ...picked.map((id) => `<@${id}> picked **${itemLabel(picks[id])}**`));
+
+  return lines.join('\n').slice(0, 2000);
+}
+
+async function announceShopGiveaway(channel, messageId, giveaway) {
+  const winners = giveaway.winners;
+
+  if (giveaway.prizeKind === 'item') {
+    const item = SHOP_ITEMS[giveaway.itemKey];
+    const refunded = winners.filter((id) => giveaway.grants?.[id]?.refunded);
+    const where =
+      item && item.type === 'colour'
+        ? 'It is already yours. Wear it from `/inv`.'
+        : 'It is already in your inventory. Press Join again on a giveaway you are in to use it.';
+
+    const lines = [
+      `🎉 Congratulations ${winners.map((id) => `<@${id}>`).join(', ')}! ` +
+        `You won **${giveaway.prize}**${winners.length > 1 ? ' each' : ''}.`,
+      where,
+    ];
+
+    for (const id of refunded) {
+      lines.push(`<@${id}> already owned it, so they got **${economy.fmt(giveaway.grants[id].refunded)}** instead.`);
+    }
+
+    await channel.send({ content: lines.join('\n'), allowedMentions: { users: winners } });
+    return;
+  }
+
+  const pickMessage = await channel.send({
+    content: buildPickContent(giveaway),
+    components: [buildPickRow(messageId)],
+    allowedMentions: { users: winners },
+  });
+
+  const giveaways = loadGiveaways();
+  if (giveaways[messageId]) {
+    giveaways[messageId].pickMessageId = pickMessage.id;
+    giveaways[messageId].pickChannelId = pickMessage.channelId;
+    saveGiveaways(giveaways);
+  }
 }
 
 
@@ -594,6 +708,18 @@ async function endGiveaway(client, messageId) {
       for (const id of giveaway.winners) economy.addVb(id, giveaway.vbAmount);
       giveaway.paid = true;
     }
+
+    if (isShop(giveaway) && !giveaway.paid) {
+      if (giveaway.prizeKind === 'item') {
+        giveaway.grants = {};
+        for (const id of giveaway.winners) {
+          giveaway.grants[id] = grantShopItem(id, giveaway.itemKey, giveaway.amount || 1);
+        }
+      } else {
+        giveaway.picks = {};
+      }
+      giveaway.paid = true;
+    }
   }
 
   giveaways[messageId] = giveaway;
@@ -629,6 +755,11 @@ async function endGiveaway(client, messageId) {
           'It is already in your balance. Check it with `/inv` and spend it in `/item shop`.',
         allowedMentions: { users: winners },
       });
+      return;
+    }
+
+    if (isShop(giveaway) && winners.length > 0) {
+      await announceShopGiveaway(channel, messageId, giveaway);
       return;
     }
 
@@ -827,6 +958,10 @@ module.exports = {
   describeOutcome,
   pickWinners,
   endGiveaway,
+  grantShopItem,
+  buildPickRow,
+  buildPickContent,
+  itemLabel,
   resolveSplitSteal,
   refreshClaimButton,
   rememberClaimMessage,
