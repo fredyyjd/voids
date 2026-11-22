@@ -4,9 +4,16 @@ const {
   StringSelectMenuBuilder,
   ButtonBuilder,
   ButtonStyle,
+  ContainerBuilder,
+  TextDisplayBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  SectionBuilder,
+  MessageFlags,
   Routes,
 } = require('discord.js');
 const economy = require('./economy');
+const { box } = require('./box');
 const { COLOR } = require('./theme');
 const { ITEMS, MEMBER_ROLE_ID, FOOTER } = require('./economyConfig');
 
@@ -16,12 +23,17 @@ const COLOUR_KEYS = Object.keys(ITEMS).filter((k) => ITEMS[k].type === 'colour')
 class ShopError extends Error {}
 
 const label = (item) => `${item.emoji} ${item.name}`;
+const FOOTER_LINE = `-# ${FOOTER}`;
 
 /* =========================================================
    COLOUR ROLES
    Created by the bot the first time they are needed, placed just
    above the Member role so the colour shows on the name.
 ========================================================= */
+
+// The colour roles are set by id in economyConfig.js (roleId on each colour).
+// Roles the bot made itself in the past are still known, so they get swapped out too.
+const roleIdFor = (key) => ITEMS[key]?.roleId || economy.shopRoles()[key] || null;
 
 const creating = new Map(); // item key -> promise, so two buyers never make two roles
 
@@ -72,6 +84,13 @@ async function createColourRole(guild, key) {
 }
 
 async function ensureColourRole(guild, key) {
+  const fixedId = ITEMS[key]?.roleId;
+  if (fixedId) {
+    const fixed = guild.roles.cache.get(fixedId) || (await guild.roles.fetch(fixedId).catch(() => null));
+    if (!fixed) throw new ShopError(`The ${ITEMS[key].name} colour role could not be found. Tell an admin.`);
+    return fixed;
+  }
+
   const savedId = economy.shopRoles()[key];
   if (savedId) {
     const existing = guild.roles.cache.get(savedId) || (await guild.roles.fetch(savedId).catch(() => null));
@@ -87,11 +106,14 @@ async function ensureColourRole(guild, key) {
 
 // Puts the chosen colour on the member and takes every other shop colour off. key = null removes all.
 async function wearColour(member, key) {
-  const saved = economy.shopRoles();
   const target = key ? await ensureColourRole(member.guild, key) : null;
 
-  const remove = COLOUR_KEYS.map((k) => saved[k])
-    .filter((id) => id && id !== target?.id && member.roles.cache.has(id));
+  // Every colour role the shop has ever used (current ids + old bot-made ones).
+  const allColourRoleIds = new Set(
+    [...COLOUR_KEYS.map((k) => ITEMS[k].roleId), ...Object.values(economy.shopRoles())].filter(Boolean)
+  );
+
+  const remove = [...allColourRoleIds].filter((id) => id !== target?.id && member.roles.cache.has(id));
 
   try {
     if (remove.length) await member.roles.remove(remove, 'Void Bucks colour swap');
@@ -107,15 +129,12 @@ async function wearColour(member, key) {
 
 const buying = new Set();
 
-// Returns { ok, embed }.
+// Returns { ok, payload }.
 async function purchase(interaction, key) {
   const item = ITEMS[key];
   const id = interaction.user.id;
 
-  const fail = (text) => ({
-    ok: false,
-    embed: new EmbedBuilder().setColor(0xed4245).setTitle('Purchase failed').setDescription(text).setFooter({ text: FOOTER }),
-  });
+  const fail = (text) => ({ ok: false, payload: box(['## ❌  Purchase failed', text, FOOTER_LINE]) });
 
   if (!item) return fail('That item is not in the shop any more.');
   if (buying.has(id)) return fail('Hold on, your last purchase is still going through.');
@@ -125,7 +144,7 @@ async function purchase(interaction, key) {
     const u = economy.user(id);
 
     if (item.type === 'colour' && u.colours.includes(key)) {
-      return fail(`You already own **${label(item)}**. Wear it from \`/inv\`.`);
+      return fail(`You already own **${label(item)}**. Wear it from the shop or \`/inv\`.`);
     }
 
     // Take the VB first. If anything goes wrong afterwards it is given back.
@@ -158,15 +177,12 @@ async function purchase(interaction, key) {
 
     return {
       ok: true,
-      embed: new EmbedBuilder()
-        .setColor(0x57f287)
-        .setTitle('Purchase complete')
-        .setDescription(lines.join('\n'))
-        .addFields(
-          { name: 'Paid', value: `−${economy.fmt(item.price)}`, inline: true },
-          { name: 'New balance', value: economy.fmt(economy.peek(id).vb), inline: true }
-        )
-        .setFooter({ text: FOOTER }),
+      payload: box([
+        '## ✅  Purchase complete',
+        lines.join('\n'),
+        `**Paid:** −${economy.fmt(item.price)}\n**New balance:** ${economy.fmt(economy.peek(id).vb)}`,
+        FOOTER_LINE,
+      ]),
     };
   } finally {
     buying.delete(id);
@@ -180,92 +196,128 @@ async function purchase(interaction, key) {
 function shopPayload() {
   const colours = COLOUR_KEYS.map((k) => ITEMS[k]);
   const entry = ITEMS.extra_entry;
+  const text = (content) => new TextDisplayBuilder().setContent(content);
+  const gap = () => new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small);
 
-  const embed = new EmbedBuilder()
-    .setColor(COLOR)
-    .setTitle('🛒  Item Shop')
-    .setDescription(
-      [
-        'Spend your **VB** on perks around the server.',
-        'You earn VB by chatting, counting and unlocking achievements.',
-        '',
-        '*More items are coming soon!*',
-      ].join('\n')
-    )
-    .addFields(
-      {
-        name: `🎨  Name Colours  ·  ${economy.fmt(colours[0].price)} each`,
-        value: [colours.map((c) => `${c.emoji} **${c.name}**`).join('   '), '-# Wear it from `/inv` and swap any time.'].join('\n'),
-      },
-      {
-        name: `${entry.emoji}  ${entry.name}  ·  ${economy.fmt(entry.price)}`,
-        value: 'Already joined a giveaway? Press **Join** again to use it and double your chance on that giveaway.',
-      }
-    )
-    .setFooter({ text: FOOTER });
+  const container = new ContainerBuilder().setAccentColor(COLOR);
 
-  const menu = new StringSelectMenuBuilder()
-    .setCustomId('shop_select')
-    .setPlaceholder('Choose something to buy…')
-    .addOptions(
-      Object.entries(ITEMS).map(([key, item]) => ({
-        label: `${item.name}  ·  ${item.price} VB`,
-        value: key,
-        description: item.desc,
-        emoji: item.emoji,
-      }))
+  container
+    .addTextDisplayComponents(
+      text(
+        [
+          '# 🛒  Item Shop',
+          'Welcome in! Spend your **VB** on perks around the server.',
+          'You earn VB by chatting, counting and unlocking achievements.',
+        ].join('\n')
+      )
+    )
+    .addSeparatorComponents(gap())
+    .addTextDisplayComponents(
+      text(
+        [
+          `### 🎨  Name Colours  ·  ${economy.fmt(colours[0].price)} each`,
+          'Make your name stand out. You can own them all, but only **one** is worn at a time.',
+        ].join('\n')
+      )
     );
 
-  const buttons = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId('shop_balance').setLabel('My Balance').setEmoji('💰').setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId('shop_inv').setLabel('My Inventory').setEmoji('🎒').setStyle(ButtonStyle.Secondary)
-  );
+  // Up to 5 buttons fit in one row.
+  for (let i = 0; i < colours.length; i += 5) {
+    const row = new ActionRowBuilder().addComponents(
+      colours
+        .slice(i, i + 5)
+        .map((c) =>
+          new ButtonBuilder()
+            .setCustomId(`shop_item:${Object.keys(ITEMS).find((k) => ITEMS[k] === c)}`)
+            .setLabel(c.name)
+            .setEmoji(c.emoji)
+            .setStyle(ButtonStyle.Secondary)
+        )
+    );
+    container.addActionRowComponents(row);
+  }
 
-  return { embeds: [embed], components: [new ActionRowBuilder().addComponents(menu), buttons] };
+  container
+    .addSeparatorComponents(gap())
+    .addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(
+          text(
+            [
+              `### ${entry.emoji}  ${entry.name}  ·  ${economy.fmt(entry.price)}`,
+              'Already in a giveaway? Press **Join** again to use it and double your chance on that giveaway.',
+            ].join('\n')
+          )
+        )
+        .setButtonAccessory(
+          new ButtonBuilder()
+            .setCustomId('shop_item:extra_entry')
+            .setLabel('Extra Entry')
+            .setEmoji(entry.emoji)
+            .setStyle(ButtonStyle.Primary)
+        )
+    )
+    .addSeparatorComponents(gap())
+    .addActionRowComponents(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder().setCustomId('shop_balance').setLabel('My Balance').setEmoji('💰').setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder().setCustomId('shop_inv').setLabel('My Inventory').setEmoji('🎒').setStyle(ButtonStyle.Secondary)
+      )
+    )
+    .addTextDisplayComponents(text(`-# More items coming soon  ·  ${FOOTER}`));
+
+  return { flags: MessageFlags.IsComponentsV2, components: [container] };
 }
 
+// The "are you sure?" box that opens (only for you) when you press an item.
 function confirmPayload(key, userId) {
   const item = ITEMS[key];
   const u = economy.peek(userId);
 
-  if (!item) {
-    return { embeds: [new EmbedBuilder().setColor(0xed4245).setDescription('That item is not in the shop any more.')], components: [] };
-  }
+  if (!item) return box('❌ That item is not in the shop any more.');
 
+  // Already owned: offer to wear it instead of buying it again.
   if (item.type === 'colour' && u.colours.includes(key)) {
-    return {
-      embeds: [
-        new EmbedBuilder()
-          .setColor(COLOR)
-          .setTitle('You already own this')
-          .setDescription(`You already have **${label(item)}**. Wear it from \`/inv\`.`)
-          .setFooter({ text: FOOTER }),
-      ],
-      components: [],
-    };
+    const wearing = u.equipped === key;
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`shop_equip:${key}`)
+        .setLabel(wearing ? 'Wearing' : 'Wear it')
+        .setEmoji(item.emoji)
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(wearing)
+    );
+    return box(
+      [`## ${label(item)}`, `You already own this colour.${wearing ? ' You are wearing it now.' : ' Only one colour can be worn at a time.'}`, FOOTER_LINE],
+      { rows: [row] }
+    );
   }
 
   const afford = u.vb + 1e-9 >= item.price;
-  const embed = new EmbedBuilder()
-    .setColor(afford ? COLOR : 0xed4245)
-    .setTitle(afford ? 'Confirm purchase' : 'Not enough VB')
-    .setDescription(`**${label(item)}**\n${item.desc}`)
-    .addFields(
-      { name: 'Price', value: economy.fmt(item.price), inline: true },
-      { name: 'Your balance', value: economy.fmt(u.vb), inline: true },
-      afford
-        ? { name: 'After buying', value: economy.fmt(u.vb - item.price), inline: true }
-        : { name: 'You need', value: economy.fmt(item.price - u.vb), inline: true }
-    )
-    .setFooter({ text: FOOTER });
 
-  if (!afford) return { embeds: [embed], components: [] };
+  if (!afford) {
+    return box([
+      '## ❌  Not enough VB',
+      `**${label(item)}**\n${item.desc}`,
+      `**Price:** ${economy.fmt(item.price)}\n**Your balance:** ${economy.fmt(u.vb)}\n**You need:** ${economy.fmt(item.price - u.vb)} more`,
+      FOOTER_LINE,
+    ]);
+  }
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`shop_buy:${key}`).setLabel('Confirm').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId(`shop_buy:${key}`).setLabel('Confirm').setEmoji('✅').setStyle(ButtonStyle.Success),
     new ButtonBuilder().setCustomId('shop_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary)
   );
-  return { embeds: [embed], components: [row] };
+
+  return box(
+    [
+      '## 🛍️  Confirm purchase',
+      `**${label(item)}**\n${item.desc}`,
+      `**Price:** ${economy.fmt(item.price)}\n**Your balance:** ${economy.fmt(u.vb)}\n**After buying:** ${economy.fmt(u.vb - item.price)}`,
+      FOOTER_LINE,
+    ],
+    { rows: [row] }
+  );
 }
 
 function balanceEmbed(user, member) {
