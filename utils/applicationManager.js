@@ -143,31 +143,31 @@ function buildApplicationEmbed(member, appConfig, answers, user = null) {
   const space = allocateAnswerSpace(answerTexts.map((a) => a.length), budget);
 
   const embed = new EmbedBuilder()
-    .setTitle(`${appConfig.emoji ? appConfig.emoji + ' ' : ''}New Application: ${appConfig.label}`)
+    .setTitle(`New Application: ${appConfig.label}`)
     .setColor(STATUS_COLORS.pending)
     .setThumbnail(person.displayAvatarURL())
     .setDescription(
       [
-        `👤  **Applicant:** <@${person.id}>`,
-        `🏷️  **Display name:** ${displayName}`,
-        `🆔  **User ID:** \`${person.id}\``,
+        `**Applicant:** <@${person.id}>`,
+        `**Display name:** ${displayName}`,
+        `**User ID:** \`${person.id}\``,
         '\u200b',
       ].join('\n')
     )
     .addFields(
       {
-        name: '📅  Account Created',
+        name: 'Account Created',
         value: `<t:${createdTimestamp}:D>\n<t:${createdTimestamp}:R>`,
         inline: true,
       },
       {
-        name: '📥  Joined Server',
+        name: 'Joined Server',
         value: joinedTimestamp ? `<t:${joinedTimestamp}:D>\n<t:${joinedTimestamp}:R>` : 'Not in the server',
         inline: true,
       },
       {
-        name: '🔎  Status',
-        value: '🟡 Pending review',
+        name: 'Status',
+        value: 'Pending review',
         inline: true,
       }
     )
@@ -205,14 +205,14 @@ function applyDecisionToEmbed(originalEmbed, { isAccept, userId, deciderName, de
   const index = fields.findIndex((f) => f.name.endsWith('Status'));
 
   if (index >= 0) {
-    embed.spliceFields(index, 1, { name: '🔎  Status', value: status, inline: true });
+    embed.spliceFields(index, 1, { name: 'Status', value: status, inline: true });
   } else {
-    embed.addFields({ name: '🔎  Status', value: status, inline: true });
+    embed.addFields({ name: 'Status', value: status, inline: true });
   }
 
   if (reason) {
     embed.addFields({
-      name: isAccept ? '📝  Accept Note' : '📝  Deny Reason',
+      name: isAccept ? 'Accept Note' : 'Deny Reason',
       value: reason.slice(0, 1024),
       inline: false,
     });
@@ -239,7 +239,7 @@ function buildDecisionDm({ guildName, label, isAccept, reason, deciderName, deci
 
   if (reason) {
     embed.addFields({
-      name: isAccept ? '📝  Note' : '📝  Reason',
+      name: isAccept ? 'Note' : 'Reason',
       value: reason.slice(0, 1024),
     });
   }
@@ -287,7 +287,6 @@ function buildDecisionRow(userId, appId, disabled = false) {
     new ButtonBuilder()
       .setCustomId(`app_accept_reason_${userId}_${appId}`)
       .setLabel('Accept with reason')
-      .setEmoji('📝')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(disabled),
     new ButtonBuilder()
@@ -299,13 +298,11 @@ function buildDecisionRow(userId, appId, disabled = false) {
     new ButtonBuilder()
       .setCustomId(`app_close_reason_${userId}_${appId}`)
       .setLabel('Deny with reason')
-      .setEmoji('📝')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(disabled),
     new ButtonBuilder()
       .setCustomId(`app_open_ticket_${userId}_${appId}`)
       .setLabel('Open ticket with user')
-      .setEmoji('🎫')
       .setStyle(ButtonStyle.Primary)
       .setDisabled(disabled)
   );
