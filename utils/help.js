@@ -33,7 +33,7 @@ const PAGES = {
       ['/game <name>', 'Start a mini game (trivia, dice, roulette, typing race and more)'],
       ['/game stop', 'Stop the game running in this channel'],
       ['/rps <user>', 'Challenge someone to rock paper scissors'],
-      ['/calc <expression>', 'Quick calculator'],
+      ['/calc', 'Calculator: type a sum, or use the button keypad'],
       ['/afk [reason]  ·  v!afk', 'Go afk until you type again'],
       ['/vouch lb', 'Who has the most vouches'],
       ['/vouch see <user>', 'See someone\'s vouches'],
