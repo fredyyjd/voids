@@ -64,7 +64,7 @@ function unlockedEmbed(user, def) {
     .setTimestamp();
 }
 
-// Posts one embed per achievement in the achievements channel (pinging the person),
+// Posts one embed per achievement in the achievements channel (no ping, just the embed),
 // then moves the leaderboard back to the bottom of that channel.
 // `fallback` is only used if the achievements channel cannot be reached.
 async function announce(fallback, user, defs) {
@@ -75,9 +75,8 @@ async function announce(fallback, user, defs) {
   for (const def of defs) {
     await channel
       .send({
-        content: `<@${user.id}>`,
         embeds: [unlockedEmbed(user, def)],
-        allowedMentions: { users: [user.id] },
+        allowedMentions: { parse: [] },
       })
       .catch((err) => console.error('[achievements] could not announce:', err.message));
   }
