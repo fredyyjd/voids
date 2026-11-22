@@ -79,6 +79,7 @@ module.exports = {
       if (!giveaway || !giveaway.ended) return fail(interaction, 'Giveaway not found or still running.');
       if (giveaway.type === 'splitsteal') return fail(interaction, "Split or Steal giveaways can't be rerolled.");
       if (giveaway.type === 'vb') return fail(interaction, "VB giveaways can't be rerolled because the VB was already paid out.");
+      if (giveaway.type === 'shop') return fail(interaction, "Economy giveaways can't be rerolled because the prize was already given out.");
 
       const winners = pickWinners(giveaway.entrants || [], giveaway.winnerCount, giveaway.extra);
       if (!winners.length) return fail(interaction, 'Nobody entered, so there\'s no one to pick.');
