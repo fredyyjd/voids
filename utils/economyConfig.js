@@ -35,13 +35,14 @@ module.exports = {
 
   // Shop items. Add more here later.
   ITEMS: {
-    colour_red: { type: 'colour', name: 'Red', emoji: '🔴', price: 25, color: 0xed4245, desc: 'A bold red name' },
-    colour_blue: { type: 'colour', name: 'Blue', emoji: '🔵', price: 25, color: 0x3b82f6, desc: 'A cool blue name' },
-    colour_green: { type: 'colour', name: 'Green', emoji: '🟢', price: 25, color: 0x57f287, desc: 'A fresh green name' },
+    colour_red: { type: 'colour', name: 'Red', emoji: '🔴', price: 25, color: 0xed4245, roleId: '1573906214935461999', desc: 'A bold red name' },
+    colour_blue: { type: 'colour', name: 'Blue', emoji: '🔵', price: 25, color: 0x3b82f6, roleId: '1573906272980308118', desc: 'A cool blue name' },
+    colour_green: { type: 'colour', name: 'Green', emoji: '🟢', price: 25, color: 0x57f287, roleId: '1573906328760615052', desc: 'A fresh green name' },
     colour_mix: {
       type: 'colour',
       name: 'Mix',
-      emoji: '🌈',
+      emoji: '🟣',
+      roleId: '1573906385106894959',
       price: 25,
       color: 0xa855f7,
       gradient: [0xa855f7, 0xec4899, 0x3b82f6], // used when the server supports gradient roles
