@@ -132,7 +132,11 @@ function useExtra(id) {
 const counting = () => load().counting;
 
 function setCountingChannel(guildId, channelId) {
-  load().counting = { guildId, channelId, current: 0, lastUserId: null };
+  const state = load();
+  state.counting = { guildId, channelId, current: 0, lastUserId: null };
+
+  // A fresh start also clears everyone's counting cooldown.
+  for (const u of Object.values(state.users)) u.lastCount = 0;
   touch();
 }
 
