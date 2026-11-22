@@ -24,6 +24,13 @@ const COLOUR_KEYS = Object.keys(ITEMS).filter((k) => ITEMS[k].type === 'colour')
 class ShopError extends Error {}
 
 const label = (item) => `${item.emoji} ${item.name}`;
+// Button colour for each shop colour: red = red, blue = blue, green = green, neon = grey.
+const styleOf = (item) => ButtonStyle[item?.buttonStyle] ?? ButtonStyle.Secondary;
+
+// Role mention, so the colour shows. Messages that use it send allowedMentions: { parse: [] } so nobody is pinged.
+const roleTag = (item) => (item.roleId ? `<@&${item.roleId}>` : `**${item.name}**`);
+const NO_PINGS = { parse: [] };
+
 const FOOTER_LINE = `-# ${FOOTER}`;
 
 /* =========================================================
@@ -217,7 +224,8 @@ function shopPayload() {
       text(
         [
           `### 🎨  Name Colours  ·  ${economy.fmt(colours[0].price)} each`,
-          'Make your name stand out. You can own them all, but only **one** is worn at a time.',
+          colours.map((c) => `${c.emoji} ${roleTag(c)}`).join('   '),
+          '-# Make your name stand out. You can own them all, but only one is worn at a time.',
         ].join('\n')
       )
     );
@@ -232,7 +240,7 @@ function shopPayload() {
             .setCustomId(`shop_item:${Object.keys(ITEMS).find((k) => ITEMS[k] === c)}`)
             .setLabel(c.name)
             .setEmoji(c.emoji)
-            .setStyle(ButtonStyle.Secondary)
+            .setStyle(styleOf(c))
         )
     );
     container.addActionRowComponents(row);
@@ -267,7 +275,7 @@ function shopPayload() {
     )
     .addTextDisplayComponents(text(`-# More items coming soon  ·  ${FOOTER}`));
 
-  return { flags: MessageFlags.IsComponentsV2, components: [container] };
+  return { flags: MessageFlags.IsComponentsV2, components: [container], allowedMentions: NO_PINGS };
 }
 
 // The "are you sure?" box that opens (only for you) when you press an item.
@@ -285,7 +293,7 @@ function confirmPayload(key, userId) {
         .setCustomId(`shop_equip:${key}`)
         .setLabel(wearing ? 'Wearing' : 'Wear it')
         .setEmoji(item.emoji)
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(wearing ? ButtonStyle.Secondary : styleOf(item))
         .setDisabled(wearing)
     );
     return box(
@@ -360,7 +368,8 @@ function invPayload(user, member, notice = null) {
       text(
         [
           '### 🎨  Name Colours',
-          'Press a colour to wear it. Only one can be worn at a time.',
+          owned.map((k) => `${ITEMS[k].emoji} ${roleTag(ITEMS[k])}${u.equipped === k ? '  ·  *wearing*' : ''}`).join('\n'),
+          '-# Press a colour to wear it. Only one can be worn at a time.',
         ].join('\n')
       )
     );
@@ -371,7 +380,7 @@ function invPayload(user, member, notice = null) {
         .setCustomId(`inv_equip:${k}`)
         .setLabel(wearing ? `${ITEMS[k].name}  ·  Wearing` : ITEMS[k].name)
         .setEmoji(ITEMS[k].emoji)
-        .setStyle(wearing ? ButtonStyle.Secondary : ButtonStyle.Primary)
+        .setStyle(wearing ? ButtonStyle.Secondary : styleOf(ITEMS[k]))
         .setDisabled(wearing);
     });
 
@@ -398,7 +407,7 @@ function invPayload(user, member, notice = null) {
     )
     .addTextDisplayComponents(text(`-# ${FOOTER}`));
 
-  return { flags: MessageFlags.IsComponentsV2, components: [container] };
+  return { flags: MessageFlags.IsComponentsV2, components: [container], allowedMentions: NO_PINGS };
 }
 
 // Wear (or remove) a colour from /inv.
