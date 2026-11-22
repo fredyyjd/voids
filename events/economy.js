@@ -8,10 +8,16 @@ const PREFIX = 'v!';
 // Try the custom emoji first, fall back to a normal one if the bot cannot use it.
 async function react(message, custom, fallback) {
   try {
-    await message.react(custom);
+    return await message.react(custom);
   } catch {
-    await message.react(fallback).catch(() => {});
+    return message.react(fallback).catch(() => null);
   }
+}
+
+// Same as v!to: take the loading emoji off, then put the tick or the cross on.
+async function markDone(message, loading, ok) {
+  if (loading) await loading.users.remove(message.client.user.id).catch(() => {});
+  await react(message, ok ? EMOJI.tick : EMOJI.cross, ok ? '✅' : '❌');
 }
 
 /* =========================================================
@@ -24,31 +30,37 @@ async function react(message, custom, fallback) {
 async function handleCounting(message, counting) {
   const text = (message.content || '').trim();
   const number = /^\d{1,12}$/.test(text) ? Number(text) : null;
-
-  if (number !== counting.current + 1) {
-    await react(message, EMOJI.cross, '❌');
-    return;
-  }
-
   const id = message.author.id;
-  const u = economy.user(id);
   const now = Date.now();
-
-  if (now - u.lastCount < COUNTING.cooldownMs) {
-    await react(message, EMOJI.loading, '⏳');
-    return;
-  }
 
   // Everything that decides the count happens before the first await, so two
   // people sending the same number at once cannot both be right.
-  counting.current = number;
-  counting.lastUserId = id;
-  u.lastCount = now;
-  u.counts += 1;
-  economy.addVb(id, COUNTING.reward);
-  const unlocked = achievements.unlock(id, 'counts');
+  let outcome = 'wrong';
+  let unlocked = [];
 
-  await react(message, EMOJI.tick, '✅');
+  if (number === counting.current + 1) {
+    const u = economy.user(id);
+
+    if (now - u.lastCount < COUNTING.cooldownMs) {
+      outcome = 'cooldown';
+    } else {
+      outcome = 'ok';
+      counting.current = number;
+      counting.lastUserId = id;
+      u.lastCount = now;
+      u.counts += 1;
+      economy.addVb(id, COUNTING.reward);
+      unlocked = achievements.unlock(id, 'counts');
+    }
+  }
+
+  // Loading emoji while it is handled, like v!to.
+  const loading = await react(message, EMOJI.loading, '⏳');
+
+  // Counted too soon: the loading emoji stays on the message.
+  if (outcome === 'cooldown') return;
+
+  await markDone(message, loading, outcome === 'ok');
   if (unlocked.length) await achievements.announce(message.channel, message.author, unlocked);
 }
 
