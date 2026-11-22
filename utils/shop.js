@@ -9,6 +9,7 @@ const {
   SeparatorBuilder,
   SeparatorSpacingSize,
   SectionBuilder,
+  ThumbnailBuilder,
   MessageFlags,
   Routes,
 } = require('discord.js');
@@ -332,45 +333,72 @@ function balanceEmbed(user, member) {
 
 function invPayload(user, member, notice = null) {
   const u = economy.peek(user.id);
-  const owned = u.colours.filter((k) => ITEMS[k]);
+  const owned = COLOUR_KEYS.filter((k) => u.colours.includes(k));
+  const name = member?.displayName || user.username;
+  const text = (content) => new TextDisplayBuilder().setContent(content);
+  const gap = () => new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small);
 
-  const colourLines = owned.length
-    ? owned.map((k) => `${ITEMS[k].emoji} **${ITEMS[k].name}**${u.equipped === k ? '  ·  *wearing*' : ''}`).join('\n')
-    : 'Nothing yet. Buy one in `/item shop`.';
+  const container = new ContainerBuilder().setAccentColor(COLOR);
 
-  const embed = new EmbedBuilder()
-    .setColor(COLOR)
-    .setAuthor({ name: `${member?.displayName || user.username}'s Inventory`, iconURL: user.displayAvatarURL() })
-    .setDescription(notice ? `${notice}\n\u200b` : null)
-    .addFields(
-      { name: '💰  Balance', value: economy.fmt(u.vb) },
-      { name: '🎨  Name Colours', value: colourLines },
-      {
-        name: '🎟️  Extra Giveaway Entries',
-        value: u.extra ? `**${u.extra}**\n-# Press **Join** again on a giveaway you are in to use one.` : 'None. Buy one in `/item shop`.',
-      }
-    )
-    .setFooter({ text: FOOTER });
+  // Header with the avatar on the right.
+  container.addSectionComponents(
+    new SectionBuilder()
+      .addTextDisplayComponents(
+        text([`# 🎒  ${name}'s Inventory`, notice ? `> ${notice}` : '-# Everything you own, in one place.'].join('\n'))
+      )
+      .setThumbnailAccessory(new ThumbnailBuilder().setURL(user.displayAvatarURL({ size: 128 })))
+  );
 
-  const components = [];
+  container
+    .addSeparatorComponents(gap())
+    .addTextDisplayComponents(text(`### 💰  Balance\n## ${economy.fmt(u.vb)}`))
+    .addSeparatorComponents(gap());
+
+  // Name colours: one button per colour you own. The one you are wearing is grey.
   if (owned.length) {
-    const menu = new StringSelectMenuBuilder()
-      .setCustomId('inv_equip')
-      .setPlaceholder('Choose a colour to wear…')
-      .addOptions([
-        ...owned.map((k) => ({
-          label: ITEMS[k].name,
-          value: k,
-          emoji: ITEMS[k].emoji,
-          description: u.equipped === k ? 'Wearing now' : 'Put this colour on',
-          default: u.equipped === k,
-        })),
-        { label: 'No colour', value: 'none', emoji: '🚫', description: 'Take my colour off' },
-      ]);
-    components.push(new ActionRowBuilder().addComponents(menu));
+    container.addTextDisplayComponents(
+      text(
+        [
+          '### 🎨  Name Colours',
+          'Press a colour to wear it. Only one can be worn at a time.',
+        ].join('\n')
+      )
+    );
+
+    const buttons = owned.map((k) => {
+      const wearing = u.equipped === k;
+      return new ButtonBuilder()
+        .setCustomId(`inv_equip:${k}`)
+        .setLabel(wearing ? `${ITEMS[k].name}  ·  Wearing` : ITEMS[k].name)
+        .setEmoji(ITEMS[k].emoji)
+        .setStyle(wearing ? ButtonStyle.Secondary : ButtonStyle.Primary)
+        .setDisabled(wearing);
+    });
+
+    if (u.equipped && ITEMS[u.equipped]) {
+      buttons.push(new ButtonBuilder().setCustomId('inv_equip:none').setLabel('Remove').setEmoji('🚫').setStyle(ButtonStyle.Danger));
+    }
+
+    for (let i = 0; i < buttons.length; i += 5) {
+      container.addActionRowComponents(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
+    }
+  } else {
+    container.addTextDisplayComponents(text('### 🎨  Name Colours\nNothing yet. Grab one in `/item shop`.'));
   }
 
-  return { embeds: [embed], components };
+  container
+    .addSeparatorComponents(gap())
+    .addTextDisplayComponents(
+      text(
+        [
+          '### 🎟️  Extra Giveaway Entries',
+          u.extra ? `**${u.extra}**\n-# Press **Join** again on a giveaway you are in to use one.` : 'None yet. Grab one in `/item shop`.',
+        ].join('\n')
+      )
+    )
+    .addTextDisplayComponents(text(`-# ${FOOTER}`));
+
+  return { flags: MessageFlags.IsComponentsV2, components: [container] };
 }
 
 // Wear (or remove) a colour from /inv.
