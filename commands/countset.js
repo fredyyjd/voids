@@ -54,9 +54,9 @@ module.exports = {
           `Counting channel: ${channel}`,
           '',
           '**How it works**',
-          '• Type **1** to start, then the next number each time.',
-          '• Right number = ✅ and **2 VB**. Wrong number = ❌ and the count carries on.',
-          `• Everyone can count once every **${COUNTING.cooldownMs / 3600000} hours**. Too soon = ⏳ and it is not counted.`,
+          '• Start by typing **1**, next person types **2**, and so on.',
+          '• Right number = loading, then ✅ and **2 VB**. Wrong number = loading, then ❌.',
+          `• **${COUNTING.cooldownMs / 3600000}h cooldown** per user per count. Too soon = the loading stays and it is not counted.`,
           '• Counting achievements pay VB too. See them with `/achievements`.',
         ].join('\n')
       )
@@ -69,7 +69,9 @@ module.exports = {
           new EmbedBuilder()
             .setColor(COLOR)
             .setTitle('🔢  Counting starts now')
-            .setDescription('Type **1** to begin. Right number = ✅ and 2 VB, once every 5 hours each.')
+            .setDescription(
+              `Start by typing **1**, next person types **2**.\n${COUNTING.cooldownMs / 3600000}h cooldown per user per count.`
+            )
             .setFooter({ text: FOOTER }),
         ],
       })
