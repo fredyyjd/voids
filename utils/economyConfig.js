@@ -35,12 +35,13 @@ module.exports = {
 
   // Shop items. Add more here later.
   ITEMS: {
-    colour_red: { type: 'colour', name: 'Red', emoji: '🔴', price: 25, color: 0xed4245, roleId: '1573906214935461999', desc: 'A bold red name' },
-    colour_blue: { type: 'colour', name: 'Blue', emoji: '🔵', price: 25, color: 0x3b82f6, roleId: '1573906272980308118', desc: 'A cool blue name' },
-    colour_green: { type: 'colour', name: 'Green', emoji: '🟢', price: 25, color: 0x57f287, roleId: '1573906328760615052', desc: 'A fresh green name' },
+    colour_red: { type: 'colour', name: 'Red', emoji: '🔴', price: 25, color: 0xed4245, roleId: '1573906214935461999', buttonStyle: 'Danger', desc: 'A bold red name' },
+    colour_blue: { type: 'colour', name: 'Blue', emoji: '🔵', price: 25, color: 0x3b82f6, roleId: '1573906272980308118', buttonStyle: 'Primary', desc: 'A cool blue name' },
+    colour_green: { type: 'colour', name: 'Green', emoji: '🟢', price: 25, color: 0x57f287, roleId: '1573906328760615052', buttonStyle: 'Success', desc: 'A fresh green name' },
     colour_mix: {
       type: 'colour',
-      name: 'Mix',
+      name: 'Neon',
+      buttonStyle: 'Secondary',
       emoji: '🟣',
       roleId: '1573906385106894959',
       price: 25,
