@@ -37,9 +37,9 @@ module.exports = {
 
     const me = interaction.guild.members.me;
     const perms = channel.permissionsFor(me);
-    if (!perms?.has(['ViewChannel', 'SendMessages', 'AddReactions'])) {
+    if (!perms?.has(['ViewChannel', 'SendMessages', 'AddReactions', 'ManageMessages'])) {
       return interaction.reply({
-        content: `I need **View Channel**, **Send Messages** and **Add Reactions** in ${channel}.`,
+        content: `I need **View Channel**, **Send Messages**, **Add Reactions** and **Manage Messages** in ${channel}.`,
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -56,7 +56,7 @@ module.exports = {
           '**How it works**',
           '• Start by typing **1**, next person types **2**, and so on.',
           '• Right number = loading, then ✅ and **2 VB**. Wrong number = loading, then ❌.',
-          `• **${COUNTING.cooldownMs / 3600000}h cooldown** per user per count. Too soon = the loading stays and it is not counted.`,
+          `• **${COUNTING.cooldownMs / 3600000}h cooldown** per user per count. Too soon = loading, then your message is deleted.`,
           '• Counting achievements pay VB too. See them with `/achievements`.',
         ].join('\n')
       )
