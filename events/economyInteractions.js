@@ -1,5 +1,6 @@
 const { MessageFlags } = require('discord.js');
 const shop = require('../utils/shop');
+const { box, priv } = require('../utils/box');
 const help = require('../utils/help');
 
 const EPHEMERAL = MessageFlags.Ephemeral;
@@ -16,18 +17,35 @@ async function handle(interaction) {
   }
 
   /* ---------- shop ---------- */
+  // Item buttons on the shop (and the old dropdown on shops posted before this update).
+  if (isButton && id.startsWith('shop_item:')) {
+    return interaction.reply(priv(shop.confirmPayload(id.slice('shop_item:'.length), interaction.user.id)));
+  }
+
   if (isMenu && id === 'shop_select') {
-    return interaction.reply({ ...shop.confirmPayload(interaction.values[0], interaction.user.id), flags: EPHEMERAL });
+    return interaction.reply(priv(shop.confirmPayload(interaction.values[0], interaction.user.id)));
   }
 
   if (isButton && id.startsWith('shop_buy:')) {
     await interaction.deferUpdate();
     const result = await shop.purchase(interaction, id.slice('shop_buy:'.length));
-    return interaction.editReply({ embeds: [result.embed], components: [] });
+    return interaction.editReply(result.payload);
+  }
+
+  if (isButton && id.startsWith('shop_equip:')) {
+    await interaction.deferUpdate();
+    let notice;
+    try {
+      notice = '✅ ' + (await shop.equip(interaction, id.slice('shop_equip:'.length)));
+    } catch (err) {
+      notice = '❌ ' + (err instanceof shop.ShopError ? err.message : 'Something went wrong.');
+      if (!(err instanceof shop.ShopError)) console.error('[shop] equip failed:', err);
+    }
+    return interaction.editReply(box(notice));
   }
 
   if (isButton && id === 'shop_cancel') {
-    return interaction.update({ content: 'Purchase cancelled.', embeds: [], components: [] });
+    return interaction.update(box('Purchase cancelled.'));
   }
 
   if (isButton && id === 'shop_balance') {
@@ -35,20 +53,29 @@ async function handle(interaction) {
   }
 
   if (isButton && id === 'shop_inv') {
-    return interaction.reply({ ...shop.invPayload(interaction.user, interaction.member), flags: EPHEMERAL });
+    return interaction.reply(priv(shop.invPayload(interaction.user, interaction.member)));
   }
 
   /* ---------- inventory ---------- */
-  if (isMenu && id === 'inv_equip') {
+  // Colour buttons on /inv (and the old dropdown on inventories posted before this update).
+  const equipValue = isButton && id.startsWith('inv_equip:') ? id.slice('inv_equip:'.length) : isMenu && id === 'inv_equip' ? interaction.values[0] : null;
+
+  if (equipValue) {
     await interaction.deferUpdate();
     let notice;
     try {
-      notice = await shop.equip(interaction, interaction.values[0]);
+      notice = await shop.equip(interaction, equipValue);
     } catch (err) {
       notice = err instanceof shop.ShopError ? err.message : 'Something went wrong.';
       if (!(err instanceof shop.ShopError)) console.error('[inv] equip failed:', err);
     }
-    return interaction.editReply(shop.invPayload(interaction.user, interaction.member, notice));
+    const payload = shop.invPayload(interaction.user, interaction.member, notice);
+    try {
+      return await interaction.editReply(payload);
+    } catch {
+      // An old-style inventory cannot be turned into the new layout, so send a fresh one.
+      return interaction.followUp(priv(payload));
+    }
   }
 }
 
