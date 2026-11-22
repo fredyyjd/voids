@@ -1,0 +1,351 @@
+const {
+  EmbedBuilder,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  Routes,
+} = require('discord.js');
+const economy = require('./economy');
+const { COLOR } = require('./theme');
+const { ITEMS, MEMBER_ROLE_ID, FOOTER } = require('./economyConfig');
+
+const COLOUR_KEYS = Object.keys(ITEMS).filter((k) => ITEMS[k].type === 'colour');
+
+// An error whose message is safe to show to the person.
+class ShopError extends Error {}
+
+const label = (item) => `${item.emoji} ${item.name}`;
+
+/* =========================================================
+   COLOUR ROLES
+   Created by the bot the first time they are needed, placed just
+   above the Member role so the colour shows on the name.
+========================================================= */
+
+const creating = new Map(); // item key -> promise, so two buyers never make two roles
+
+async function createColourRole(guild, key) {
+  const item = ITEMS[key];
+
+  const memberRole =
+    guild.roles.cache.get(MEMBER_ROLE_ID) || (await guild.roles.fetch(MEMBER_ROLE_ID).catch(() => null));
+  if (!memberRole) throw new ShopError('The Member role could not be found, so the colour role cannot be made.');
+
+  let role;
+  try {
+    role = await guild.roles.create({
+      name: `Colour - ${item.name}`,
+      color: item.color,
+      hoist: false,
+      mentionable: false,
+      permissions: [],
+      reason: 'Void Bucks shop colour',
+    });
+  } catch {
+    throw new ShopError('I could not create the colour role. I need the Manage Roles permission.');
+  }
+
+  await role.setPosition(memberRole.position + 1, { reason: 'Void Bucks shop colour' }).catch(() => {});
+
+  const placed = await guild.roles.fetch(role.id, { force: true }).catch(() => role);
+  if (!placed || placed.position <= memberRole.position) {
+    await role.delete('Could not place above the Member role').catch(() => {});
+    throw new ShopError('My role must sit above the Member role so I can place colours there. Move my role up and try again.');
+  }
+
+  // Servers that support gradient roles get the blend. Everyone else keeps the solid colour.
+  if (item.gradient) {
+    const [primary, secondary, tertiary] = item.gradient;
+    await guild.client.rest
+      .patch(Routes.guildRole(guild.id, role.id), {
+        body: {
+          colors: { primary_color: primary, secondary_color: secondary, tertiary_color: tertiary },
+        },
+        reason: 'Void Bucks shop colour',
+      })
+      .catch(() => {});
+  }
+
+  economy.setShopRole(key, role.id);
+  return role;
+}
+
+async function ensureColourRole(guild, key) {
+  const savedId = economy.shopRoles()[key];
+  if (savedId) {
+    const existing = guild.roles.cache.get(savedId) || (await guild.roles.fetch(savedId).catch(() => null));
+    if (existing) return existing;
+  }
+
+  if (!creating.has(key)) {
+    const job = createColourRole(guild, key).finally(() => creating.delete(key));
+    creating.set(key, job);
+  }
+  return creating.get(key);
+}
+
+// Puts the chosen colour on the member and takes every other shop colour off. key = null removes all.
+async function wearColour(member, key) {
+  const saved = economy.shopRoles();
+  const target = key ? await ensureColourRole(member.guild, key) : null;
+
+  const remove = COLOUR_KEYS.map((k) => saved[k])
+    .filter((id) => id && id !== target?.id && member.roles.cache.has(id));
+
+  try {
+    if (remove.length) await member.roles.remove(remove, 'Void Bucks colour swap');
+    if (target && !member.roles.cache.has(target.id)) await member.roles.add(target, 'Void Bucks colour');
+  } catch {
+    throw new ShopError('I could not change your roles. Make sure my role is above the colour roles.');
+  }
+}
+
+/* =========================================================
+   PURCHASING
+========================================================= */
+
+const buying = new Set();
+
+// Returns { ok, embed }.
+async function purchase(interaction, key) {
+  const item = ITEMS[key];
+  const id = interaction.user.id;
+
+  const fail = (text) => ({
+    ok: false,
+    embed: new EmbedBuilder().setColor(0xed4245).setTitle('Purchase failed').setDescription(text).setFooter({ text: FOOTER }),
+  });
+
+  if (!item) return fail('That item is not in the shop any more.');
+  if (buying.has(id)) return fail('Hold on, your last purchase is still going through.');
+
+  buying.add(id);
+  try {
+    const u = economy.user(id);
+
+    if (item.type === 'colour' && u.colours.includes(key)) {
+      return fail(`You already own **${label(item)}**. Wear it from \`/inv\`.`);
+    }
+
+    // Take the VB first. If anything goes wrong afterwards it is given back.
+    if (!economy.spendVb(id, item.price)) {
+      return fail(
+        `**${label(item)}** costs **${economy.fmt(item.price)}** and you only have **${economy.fmt(u.vb)}**.\n` +
+          'Earn more by chatting, counting and unlocking achievements.'
+      );
+    }
+
+    try {
+      if (item.type === 'colour') {
+        await wearColour(interaction.member, key);
+        u.colours.push(key);
+        u.equipped = key;
+        economy.touch();
+      } else if (item.type === 'entry') {
+        economy.addExtra(id, 1);
+      }
+    } catch (err) {
+      economy.addVb(id, item.price);
+      if (!(err instanceof ShopError)) console.error('[shop] purchase failed:', err);
+      return fail(`${err instanceof ShopError ? err.message : 'Something went wrong.'}\nYou were **not** charged.`);
+    }
+
+    const lines =
+      item.type === 'colour'
+        ? [`You bought the **${label(item)}** name colour. It is on your name now.`, 'Swap or remove it any time in `/inv`.']
+        : [`You bought an **${label(item)}**.`, 'Join a giveaway, press **Join** again and choose to use it.'];
+
+    return {
+      ok: true,
+      embed: new EmbedBuilder()
+        .setColor(0x57f287)
+        .setTitle('Purchase complete')
+        .setDescription(lines.join('\n'))
+        .addFields(
+          { name: 'Paid', value: `−${economy.fmt(item.price)}`, inline: true },
+          { name: 'New balance', value: economy.fmt(economy.peek(id).vb), inline: true }
+        )
+        .setFooter({ text: FOOTER }),
+    };
+  } finally {
+    buying.delete(id);
+  }
+}
+
+/* =========================================================
+   LOOKS
+========================================================= */
+
+function shopPayload() {
+  const colours = COLOUR_KEYS.map((k) => ITEMS[k]);
+  const entry = ITEMS.extra_entry;
+
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setTitle('🛒  Item Shop')
+    .setDescription(
+      [
+        'Spend your **VB** on perks around the server.',
+        'You earn VB by chatting, counting and unlocking achievements.',
+        '',
+        '*More items are coming soon!*',
+      ].join('\n')
+    )
+    .addFields(
+      {
+        name: `🎨  Name Colours  ·  ${economy.fmt(colours[0].price)} each`,
+        value: [colours.map((c) => `${c.emoji} **${c.name}**`).join('   '), '-# Wear it from `/inv` and swap any time.'].join('\n'),
+      },
+      {
+        name: `${entry.emoji}  ${entry.name}  ·  ${economy.fmt(entry.price)}`,
+        value: 'Already joined a giveaway? Press **Join** again to use it and double your chance on that giveaway.',
+      }
+    )
+    .setFooter({ text: FOOTER });
+
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('shop_select')
+    .setPlaceholder('Choose something to buy…')
+    .addOptions(
+      Object.entries(ITEMS).map(([key, item]) => ({
+        label: `${item.name}  ·  ${item.price} VB`,
+        value: key,
+        description: item.desc,
+        emoji: item.emoji,
+      }))
+    );
+
+  const buttons = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('shop_balance').setLabel('My Balance').setEmoji('💰').setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId('shop_inv').setLabel('My Inventory').setEmoji('🎒').setStyle(ButtonStyle.Secondary)
+  );
+
+  return { embeds: [embed], components: [new ActionRowBuilder().addComponents(menu), buttons] };
+}
+
+function confirmPayload(key, userId) {
+  const item = ITEMS[key];
+  const u = economy.peek(userId);
+
+  if (!item) {
+    return { embeds: [new EmbedBuilder().setColor(0xed4245).setDescription('That item is not in the shop any more.')], components: [] };
+  }
+
+  if (item.type === 'colour' && u.colours.includes(key)) {
+    return {
+      embeds: [
+        new EmbedBuilder()
+          .setColor(COLOR)
+          .setTitle('You already own this')
+          .setDescription(`You already have **${label(item)}**. Wear it from \`/inv\`.`)
+          .setFooter({ text: FOOTER }),
+      ],
+      components: [],
+    };
+  }
+
+  const afford = u.vb + 1e-9 >= item.price;
+  const embed = new EmbedBuilder()
+    .setColor(afford ? COLOR : 0xed4245)
+    .setTitle(afford ? 'Confirm purchase' : 'Not enough VB')
+    .setDescription(`**${label(item)}**\n${item.desc}`)
+    .addFields(
+      { name: 'Price', value: economy.fmt(item.price), inline: true },
+      { name: 'Your balance', value: economy.fmt(u.vb), inline: true },
+      afford
+        ? { name: 'After buying', value: economy.fmt(u.vb - item.price), inline: true }
+        : { name: 'You need', value: economy.fmt(item.price - u.vb), inline: true }
+    )
+    .setFooter({ text: FOOTER });
+
+  if (!afford) return { embeds: [embed], components: [] };
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId(`shop_buy:${key}`).setLabel('Confirm').setStyle(ButtonStyle.Success),
+    new ButtonBuilder().setCustomId('shop_cancel').setLabel('Cancel').setStyle(ButtonStyle.Secondary)
+  );
+  return { embeds: [embed], components: [row] };
+}
+
+function balanceEmbed(user, member) {
+  const u = economy.peek(user.id);
+  return new EmbedBuilder()
+    .setColor(COLOR)
+    .setAuthor({ name: member?.displayName || user.username, iconURL: user.displayAvatarURL() })
+    .setTitle('💰  Balance')
+    .setDescription(`## ${economy.fmt(u.vb)}`)
+    .setFooter({ text: FOOTER });
+}
+
+function invPayload(user, member, notice = null) {
+  const u = economy.peek(user.id);
+  const owned = u.colours.filter((k) => ITEMS[k]);
+
+  const colourLines = owned.length
+    ? owned.map((k) => `${ITEMS[k].emoji} **${ITEMS[k].name}**${u.equipped === k ? '  ·  *wearing*' : ''}`).join('\n')
+    : 'Nothing yet. Buy one in `/item shop`.';
+
+  const embed = new EmbedBuilder()
+    .setColor(COLOR)
+    .setAuthor({ name: `${member?.displayName || user.username}'s Inventory`, iconURL: user.displayAvatarURL() })
+    .setDescription(notice ? `${notice}\n\u200b` : null)
+    .addFields(
+      { name: '💰  Balance', value: economy.fmt(u.vb) },
+      { name: '🎨  Name Colours', value: colourLines },
+      {
+        name: '🎟️  Extra Giveaway Entries',
+        value: u.extra ? `**${u.extra}**\n-# Press **Join** again on a giveaway you are in to use one.` : 'None. Buy one in `/item shop`.',
+      }
+    )
+    .setFooter({ text: FOOTER });
+
+  const components = [];
+  if (owned.length) {
+    const menu = new StringSelectMenuBuilder()
+      .setCustomId('inv_equip')
+      .setPlaceholder('Choose a colour to wear…')
+      .addOptions([
+        ...owned.map((k) => ({
+          label: ITEMS[k].name,
+          value: k,
+          emoji: ITEMS[k].emoji,
+          description: u.equipped === k ? 'Wearing now' : 'Put this colour on',
+          default: u.equipped === k,
+        })),
+        { label: 'No colour', value: 'none', emoji: '🚫', description: 'Take my colour off' },
+      ]);
+    components.push(new ActionRowBuilder().addComponents(menu));
+  }
+
+  return { embeds: [embed], components };
+}
+
+// Wear (or remove) a colour from /inv.
+async function equip(interaction, value) {
+  const id = interaction.user.id;
+  const u = economy.user(id);
+
+  if (value === 'none') {
+    await wearColour(interaction.member, null);
+    u.equipped = null;
+    economy.touch();
+    return 'Colour removed.';
+  }
+
+  if (!u.colours.includes(value) || !ITEMS[value]) throw new ShopError('You do not own that colour.');
+  await wearColour(interaction.member, value);
+  u.equipped = value;
+  economy.touch();
+  return `You are now wearing **${label(ITEMS[value])}**.`;
+}
+
+module.exports = {
+  ShopError,
+  purchase,
+  equip,
+  shopPayload,
+  confirmPayload,
+  invPayload,
+  balanceEmbed,
+};

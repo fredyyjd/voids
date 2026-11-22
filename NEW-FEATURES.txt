@@ -1,0 +1,97 @@
+New / changed files (same folder layout as the bot - drop them in and overwrite):
+
+NEW
+  extraConfig.js                  <- ALL the new ids/settings live here (schematic channels, template, partner, staff, ping guard)
+  commands/schem.js               /schem panel
+  commands/partner.js             /partner ping
+  commands/staff.js               /staff strike | warn | view | reset
+  events/schematicPoster.js       forward -> post, count panel, dropdown
+  events/partnerPing.js           accept/deny buttons for @Member pings
+  events/pingGuard.js             3 @everyone/@here in 10m = ban, 3 quick drop in 1m = 10m timeout
+  utils/schematics.js  utils/jsonStore.js  utils/partnerPing.js  utils/staffRecords.js  utils/pingGuard.js
+
+CHANGED
+  utils/antiNuke.js               harsher (3 kicks / 3 bans / 3 channel deletes / 3 role deletes / 3 webhooks in 10m = permanent ban)
+  utils/antiRaid.js               harsher (4 joins in 10s = raid, new accounts kicked/banned for 10m)
+  config.json                     only the antiNuke + antiRaid blocks changed
+  utils/applicationManager.js     nicer embed, status colours, fixes long applications failing to submit
+  utils/dmApplication.js          nicer DM flow + submit/cancel review step
+  commands/apply-panel.js         adds an "open positions" list
+  events/interactionCreate.js     anyone (except the applicant) can press the app buttons; management ping unchanged
+
+STAFF POINTS (new)
+  /staff lb        weekly staff points leaderboard (resets every Sunday 12pm)
+  /staff all-time  same leaderboard, never resets
+  Dropdown under the board: Staff Points / Ticket Closes / Ticket Claims / Ticket Renames / Schematic Posts
+  Points: close 2, rename 2, claim 1, schematic post 0.25 (20 second cooldown between posts)
+  Settings (points, timezone, reset time): extraConfig.js -> staffPoints
+  Files: utils/staffPoints.js, events/staffPoints.js, commands/staff.js (changed), utils/ticketManager.js,
+         commands/ticket.js, events/schematicPoster.js (changed)
+
+LOA + CLOSE REQUESTS (new)
+  /loa request days:<1-30> reason:<text>   goes to the LOA channel with Accept / Deny; Accept gives the LOA role until time is up
+  Set the LOA role id in extraConfig.js -> loa.roleId (channel + max days are there too)
+  Ticket close: staff pressing Close (or /close, /ticket close) asks the ticket owner "solved / helped?" with Close / Deny.
+    Owner closing their own ticket just closes it. Deny = ask again after 20s. The staff member who ASKED gets the close point.
+  Schematic posting: 20s cooldown, DM after ~10 spammed posts.
+  Files: commands/loa.js, utils/loaManager.js, events/loa.js, events/closeRequest.js, commands/ticket.js, utils/ticketManager.js, extraConfig.js
+
+
+STAFF MANAGEMENT (new)
+  Tracks weekly activity, sends a weekly management report, promotes / demotes by rank and picks Staff of the Week.
+  Settings: extraConfig.js -> staffManagement (bypass roles, ladder, report channel, Staff of the Week role, excluded channels).
+  Numbers (targets, thresholds, promotion cadence) have defaults in utils/staffConfig.js, override by adding the key in extraConfig.
+  Still to fill in: staffManagement.reportChannelId and staffManagement.staffOfTheWeekRoleId (placeholders), manualOnlyRoleIds (Sr Admin / Head Manager ids).
+  /staff activity [user]        this week's tracked activity
+  /staff review status|run|preview|resend   (Administrator only)
+  /staff strike / warn now take an optional evidence field. 2 valid strikes = one rank down at the weekly review.
+  Files: utils/staffConfig.js staffBypass.js staffStore.js staffMessages.js staffScoring.js staffReview.js, events/staffManager.js,
+         utils/staffRecords.js + commands/staff.js (changed), hooks in ticketManager, giveawayFlow, giveawayManager, schematicPoster,
+         eventEngine, ban/kick/timeout/warn/mute, and the bypass check in pingGuard, honeypot, gameKit, messageCreate, activityCheck, antiNuke.
+
+
+SERVER MANAGEMENT UPDATE (new)
+  Auto moderation (beta): settings in extraConfig.js -> autoMod
+    Spam: about 10 messages in 15s = messages deleted, 30 min timeout, +30 min per repeat inside 24h, DM + log
+    @everyone / @here without permission: message deleted, 1 hour timeout, +1 hour per repeat, DM + log
+    Too many user / role mentions: per message and across 30s, message deleted, 15 min timeout
+    Never punished: bots, server owner, Administrators, bypass roles 1526913504668287026 and 1547869336486551643,
+    anyone with Mention Everyone in the channel (for pings), schematic channels, and the games channel while a typing game runs
+    pingGuard skips @everyone / @here that autoMod already handles, so nothing is punished twice
+    Files: utils/autoMod.js, events/autoMod.js, utils/pingGuard.js (changed)
+  Fun giveaways (the /game minigames in the games channel)
+    Message-entry games (last-typer, closest, typing-race, word-scramble, math-race, memory-match) unlock the games channel at GO
+    and lock it again when they end or are stopped with /game stop. The channel is locked again on every bot start.
+    Button / lobby games never touch the channel permissions. Uses config.json -> gamesChannelId.
+    Files: utils/gamesLock.js, utils/gameKit.js, events/ready.js
+  Giveaway claim tickets
+    Claim Prize button: host is filled in automatically and "Hey @winner, @host will pay you soon!" is sent once.
+    Ticket panel: only the existing welcome embed with the "opened from the ticket panel" warning, no payment message.
+    The source is saved per ticket channel in data/ticket_sources.json, not guessed from the category or name.
+    Files: utils/ticketSources.js, utils/ticketManager.js, utils/giveawayFlow.js
+  Removed: /gtn and /event commands (commands/gtn.js, commands/event.js)
+  /server-management view (admins and bypass roles only)
+    Buttons: Staff (live preview of promotions, demotions, Staff of the Week pick, top scores, who needs attention)
+    and Server (spam, @everyone / @here, mass mention and protected-ping triggers: 24h, 7 days, all time, unique people, most triggered)
+    Files: commands/server-management.js, utils/modStats.js (data/mod_stats.json)
+  Automatic weekly activity check (extraConfig.js -> activityCheckAuto)
+    Posts the normal activity check in channel 1558777181633515610 once a week on a random day at 5pm (Australia/Sydney).
+    The first one is Thursday 19 Nov 2026 at 5:56pm. Results, warnings and strikes go to channel 1558783436565782598 after 5 hours.
+    Promotions, demotions, strikes and the weekly report also go to 1558783436565782598.
+    Files: utils/activityCheckAuto.js, events/staffManager.js
+
+----------------------------------------------------------------
+VOID BUCKS (VB), COUNTING, ACHIEVEMENTS AND THE ITEM SHOP
+----------------------------------------------------------------
+/help, v!help        every command, by category (v!prefix was removed)
+/countset <id|off>   set the counting channel (max perms)
+/vb giveaway         giveaway VB, winners are paid automatically (max perms)
+/vb balance [user]   check VB
+/item shop           name colours (25 VB) and extra giveaway entries (45 VB)
+/inv                 your VB, colours (wear / swap) and items
+/achievements [user] unlocked / locked achievements
+/achievements-lb     achievement leaderboard
+
+Tune rewards, cooldowns and prices in utils/economyConfig.js.
+Data is saved to economy.json in the data folder.
+Run `node deploy-commands.js` once after updating so the new slash commands show up.
