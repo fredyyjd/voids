@@ -1,13 +1,11 @@
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder } = require('discord.js');
 const { invPayload } = require('../utils/shop');
+const { priv } = require('../utils/box');
 
 module.exports = {
   data: new SlashCommandBuilder().setName('inv').setDescription('See your VB, colours and items').setDMPermission(false),
 
   async execute(interaction) {
-    return interaction.reply({
-      ...invPayload(interaction.user, interaction.member),
-      flags: MessageFlags.Ephemeral,
-    });
+    return interaction.reply(priv(invPayload(interaction.user, interaction.member)));
   },
 };
