@@ -455,47 +455,40 @@ async function createTicket(
     // Pings go in a plain message so role mentions display properly.
     await channel.send({ content: `${user} ${mentions}`.trim() });
 
-    // The welcome message is an embed, so the @user inside it never pings again.
-    // The only ping is the plain message above (the user + the staff role).
-    const embed = new EmbedBuilder()
-      .setColor(COLOR)
-      .setTitle(category.label.toLowerCase())
-      .setThumbnail(user.displayAvatarURL())
-      .setDescription(
-        `hi ${user}, thanks for reaching out.\ngive us as much detail as you can and a staff member will be with you shortly.`
-      );
+    const welcomeParts = [
+      `## ${category.label.toLowerCase()}\nhi ${user}, thanks for reaching out.\ngive us as much detail as you can and a staff member will be with you shortly.`,
+    ];
 
-    for (const answer of answers) {
-      embed.addFields({
-        name: String(answer.question).slice(0, 256),
-        value: String(answer.answer || 'No answer').slice(0, 500),
-      });
-    }
+    const answerLines = answers.map(
+      (answer) =>
+        `**${String(answer.question).slice(0, 256)}**\n${String(answer.answer || 'No answer').slice(0, 500)}`
+    );
 
-    // Giveaway claim tickets: say whether the Claim Prize button was used,
-    // so staff know if the win was already checked by the bot.
+    if (answerLines.length) welcomeParts.push(answerLines.join('\n\n'));
+
     if (categoryId === 'giveaway_claim') {
       const gc = options && options.giveawayClaim;
 
       if (gc) {
         const link = `https://discord.com/channels/${gc.guildId}/${gc.channelId}/${gc.messageId}`;
-        embed.addFields({
-          name: '✅  Claimed with the Claim Prize button',
-          value: `The bot confirmed ${user} won **${gc.prize}**. [View giveaway](${link})`,
-        });
+        welcomeParts.push(
+          `**✅  Claimed with the Claim Prize button**\nThe bot confirmed ${user} won **${gc.prize}**. [View giveaway](${link})`
+        );
       } else {
-        embed.addFields({
-          name: '⚠️  Check if they won',
-          value: 'This was opened from the ticket panel not claim prize button make sure they won',
-        });
+        welcomeParts.push(
+          '**⚠️  Check if they won**\nThis was opened from the ticket panel not claim prize button make sure they won'
+        );
       }
     }
 
     if (isServiceTicket(categoryId)) {
-      embed.setFooter({ text: config.servicePanel?.footer || 'Voids Services' });
+      welcomeParts.push(`-# ${config.servicePanel?.footer || 'Voids Services'}`);
     }
 
-    await channel.send({ embeds: [embed], components: [buildTicketControlRow()] });
+    await channel.send({
+      ...box(welcomeParts, { rows: [buildTicketControlRow()] }),
+      allowedMentions: { parse: [] },
+    });
 
     // Service tickets: payment instructions in normal text right after the embed.
     if (isServiceTicket(categoryId) && config.servicePayText) {
@@ -822,16 +815,11 @@ async function createApplicationTicketChannel(
     await channel.send({ content: `${user} ${mentions}`.trim() });
 
     await channel.send({
-      embeds: [
-        new EmbedBuilder()
-          .setColor(COLOR)
-          .setTitle('application ticket')
-          .setThumbnail(user.displayAvatarURL())
-          .setDescription(
-            `hi ${user}, a staff member opened this ticket to talk about your **${appConfig.label}** application.`
-          ),
-      ],
-      components: [buildTicketControlRow()],
+      ...box(
+        `## application ticket\nhi ${user}, a staff member opened this ticket to talk about your **${appConfig.label}** application.`,
+        { rows: [buildTicketControlRow()] }
+      ),
+      allowedMentions: { parse: [] },
     });
 
 
@@ -984,11 +972,14 @@ async function claimTicket(
   }
 
   // Prevent claiming an already claimed ticket.
-  const alreadyClaimed = interaction.message.components
-    .flatMap((row) => row.components)
-    .some((component) =>
-      component.customId?.startsWith('ticket_unclaim')
+  const hasUnclaimButton = (list) =>
+    (list || []).some(
+      (component) =>
+        component.customId?.startsWith('ticket_unclaim') ||
+        hasUnclaimButton(component.components)
     );
+
+  const alreadyClaimed = hasUnclaimButton(interaction.message.components);
 
   if (alreadyClaimed) {
     return interaction.reply({
@@ -1249,8 +1240,12 @@ async function closeTicket(interaction, reason, { force = false } = {}) {
       ],
       { rows: [row] }
     ),
-    allowedMentions: { users: [owner.id] },
+    allowedMentions: { parse: [] },
   };
+
+  await interaction.channel
+    .send({ content: `${owner}`, allowedMentions: { users: [owner.id] } })
+    .catch(() => {});
 
   if (interaction.deferred || interaction.replied) {
     await interaction.channel.send(payload);
@@ -1367,6 +1362,7 @@ async function performClose(interaction, reason, closerMember, closerId, approve
         await logChannel.send({
           ...box(lines, { file: attachment.name }),
           files: [attachment],
+          allowedMentions: { parse: [] },
         });
       }
     }
@@ -1380,6 +1376,7 @@ async function performClose(interaction, reason, closerMember, closerId, approve
       await opener.send({
         ...box('Here is a transcript of your closed ticket.', { file: dmAttachment.name }),
         files: [dmAttachment],
+        allowedMentions: { parse: [] },
       }).catch(() => {});
     }
   } catch (err) {
