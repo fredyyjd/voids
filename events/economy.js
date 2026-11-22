@@ -24,7 +24,8 @@ async function markDone(message, loading, ok) {
    COUNTING
    Correct next number -> tick, +VB. Wrong number -> cross, the
    count carries on. Right number but you counted too recently
-   -> loading emoji and it is not counted.
+   -> loading emoji, then your message is deleted so the next
+   person can send that number.
 ========================================================= */
 
 async function handleCounting(message, counting) {
@@ -57,8 +58,13 @@ async function handleCounting(message, counting) {
   // Loading emoji while it is handled, like v!to.
   const loading = await react(message, EMOJI.loading, '⏳');
 
-  // Counted too soon: the loading emoji stays on the message.
-  if (outcome === 'cooldown') return;
+  // Counted too soon: loading for a moment, then the message is deleted so the
+  // next person can send that same number. (If it cannot be deleted, the loading stays.)
+  if (outcome === 'cooldown') {
+    await new Promise((r) => setTimeout(r, 800));
+    await message.delete().catch(() => {});
+    return;
+  }
 
   await markDone(message, loading, outcome === 'ok');
   if (unlocked.length) await achievements.announce(message.channel, message.author, unlocked);
