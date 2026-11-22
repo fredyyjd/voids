@@ -1,41 +1,26 @@
-const { MessageFlags } = require('discord.js');
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-
-const SAFE_EXPRESSION = /^[0-9+\-*/(). \s]+$/;
+const { SlashCommandBuilder } = require('discord.js');
+const { evaluate, CalcError, pickerPayload, resultPayload } = require('../utils/calc');
+const { fail } = require('../utils/reply');
+const { priv } = require('../utils/box');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('calc')
-    .setDescription('Quick calculator')
+    .setDescription('Calculator')
     .addStringOption((opt) =>
-      opt.setName('expression').setDescription('e.g. (5 + 3) * 2').setRequired(true)
+      opt.setName('expression').setDescription('e.g. (5 + 3) * 2').setRequired(false)
     ),
 
   async execute(interaction) {
     const expression = interaction.options.getString('expression');
 
-    if (!SAFE_EXPRESSION.test(expression)) {
-      return interaction.reply({
-        content: 'Use numbers and `+ - * / ( )` only.',
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+    // No sum typed: pick normal calc or cool calc.
+    if (!expression) return interaction.reply(priv(pickerPayload()));
 
-    let result;
     try {
-      result = Function(`"use strict"; return (${expression})`)();
+      return await interaction.reply(resultPayload(expression, evaluate(expression)));
     } catch (err) {
-      return interaction.reply({ content: "Couldn't work that out.", flags: MessageFlags.Ephemeral });
+      return fail(interaction, err instanceof CalcError ? err.message : "Couldn't work that out.");
     }
-
-    if (typeof result !== 'number' || !Number.isFinite(result)) {
-      return interaction.reply({ content: 'That isn\'t a valid number.', flags: MessageFlags.Ephemeral });
-    }
-
-    const embed = new EmbedBuilder()
-      .setDescription(`\`${expression}\`\n## = ${result}`)
-      .setColor('#3B82F6');
-
-    await interaction.reply({ embeds: [embed] });
   },
 };
