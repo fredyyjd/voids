@@ -185,12 +185,10 @@ async function askToSubmit(dm, user, appConfig, answers) {
     new ButtonBuilder()
       .setCustomId('dmapp_review_submit')
       .setLabel('Submit')
-      .setEmoji('📨')
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId('dmapp_review_cancel')
       .setLabel('Cancel')
-      .setEmoji('🗑️')
       .setStyle(ButtonStyle.Danger)
   );
 
@@ -217,7 +215,7 @@ async function askToSubmit(dm, user, appConfig, answers) {
       embeds: [
         new EmbedBuilder()
           .setColor(colorOf(appConfig))
-          .setDescription(submit ? '📨 Sending your application...' : '🗑️ Application discarded.'),
+          .setDescription(submit ? 'Sending your application...' : 'Application discarded.'),
       ],
       components: [],
     })
@@ -255,7 +253,7 @@ async function runQuestionLoop(guild, user, dm, appId, appConfig) {
 
     if (!collected || collected.size === 0) {
       await dm
-        .send('⏱️ You took too long to respond, so your application was cancelled. You can start again from the panel.')
+        .send('You took too long to respond, so your application was cancelled. You can start again from the panel.')
         .catch(() => {});
       return;
     }
@@ -276,7 +274,7 @@ async function runQuestionLoop(guild, user, dm, appId, appConfig) {
   if (decision === 'cancel') return;
 
   if (decision === 'timeout') {
-    await dm.send('⏱️ No answer, so your application was not submitted. You can start again from the panel.').catch(() => {});
+    await dm.send('No answer, so your application was not submitted. You can start again from the panel.').catch(() => {});
     return;
   }
 
@@ -322,7 +320,7 @@ async function runQuestionLoop(guild, user, dm, appId, appConfig) {
       embeds: [
         new EmbedBuilder()
           .setColor(0x57f287)
-          .setTitle('Application submitted ✅')
+          .setTitle('Application submitted')
           .setDescription(
             `Your **${appConfig.label}** application is in. Staff will review it soon and you'll get a DM with the result.\n\n` +
             "Please don't ask about it, that lowers your chances."
