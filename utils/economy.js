@@ -41,6 +41,7 @@ function load() {
     state.boost = { ...blank().boost, ...(raw.boost || {}) };
     for (const u of Object.values(state.users)) {
       u.pass ||= 0;
+      u.boxes ||= 0;
       u.roles ||= [];
       u.features ||= [];
       u.badges ||= [];
@@ -98,6 +99,7 @@ function fresh() {
     equipped: null,
     extra: 0, // extra giveaway entries in the inventory
     pass: 0, // count passes
+    boxes: 0, // unopened mystery boxes
     roles: [], // owned shop roles
     features: [], // owned feature perks
     badges: [], // owned badges
