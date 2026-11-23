@@ -24,7 +24,7 @@ const shop = require('./shop');
 const BANNER = path.join(__dirname, '..', 'assets', 'voidscove-banner.png');
 const BANNER_NAME = 'voidscove-banner.png';
 const MAX_QTY = 10;
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 4;
 
 const carts = new Map();
 const busy = new Set();
@@ -68,9 +68,9 @@ function accessoryButton(userId, key, page) {
   const button = new ButtonBuilder().setCustomId(`cart_add:${key}:${page}`);
 
   if (owned) return button.setLabel('Owned').setStyle(ButtonStyle.Secondary).setDisabled(true);
-  if (q && countable(key)) return button.setLabel(`In cart ×${q}`).setEmoji('🛒').setStyle(ButtonStyle.Success);
-  if (q) return button.setLabel('In cart').setEmoji('✔️').setStyle(ButtonStyle.Success);
-  return button.setLabel('Add').setEmoji('🛒').setStyle(ButtonStyle.Primary);
+  if (q && countable(key)) return button.setLabel(`In cart ×${q}`).setStyle(ButtonStyle.Success);
+  if (q) return button.setLabel('In cart ✔️').setStyle(ButtonStyle.Success);
+  return button.setLabel('Add to cart 🛒').setStyle(ButtonStyle.Primary);
 }
 
 function productText(key) {
@@ -120,8 +120,8 @@ function frame(userId, view, notice, build) {
   const note = economy.announcement();
 
   const header = [
-    '# 🛒  Void Shop',
-    `**Balance:** ${economy.fmt(economy.peek(userId).vb)}   ·   **Cart:** ${count} item${count === 1 ? '' : 's'}`,
+    '# 🛒  VoidsCove Shop',
+    `💰  **${economy.fmt(economy.peek(userId).vb)}**   ·   🛒  **${count}** item${count === 1 ? '' : 's'} in your cart`,
   ];
 
   if (note) header.push(`-# 📢 ${note.text} · announced by <@${note.by}>`);
@@ -153,7 +153,11 @@ function shelf(container, userId, view, title, sub, keys, page) {
 
   if (!keys.length) return container.addTextDisplayComponents(text('*Nothing here right now.*'));
 
-  for (const key of keys.slice(at * PAGE_SIZE, (at + 1) * PAGE_SIZE)) {
+  const shown = keys.slice(at * PAGE_SIZE, (at + 1) * PAGE_SIZE);
+
+  for (const [index, key] of shown.entries()) {
+    if (index) container.addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
     if (ITEMS[key].soon) {
       container.addTextDisplayComponents(text(productText(key)));
       continue;
@@ -168,8 +172,8 @@ function shelf(container, userId, view, title, sub, keys, page) {
     container.addActionRowComponents(
       new ActionRowBuilder().addComponents(
         new ButtonBuilder().setCustomId(`cart_pg:${view}:${at - 1}`).setLabel('Back').setEmoji('⬅️').setStyle(ButtonStyle.Secondary).setDisabled(at === 0),
-        new ButtonBuilder().setCustomId('cart_page').setLabel(`Page ${at + 1} of ${pages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
-        new ButtonBuilder().setCustomId(`cart_pg:${view}:${at + 1}`).setLabel('Next').setEmoji('➡️').setStyle(ButtonStyle.Secondary).setDisabled(at >= pages - 1)
+        new ButtonBuilder().setCustomId('cart_page').setLabel(`${at + 1} / ${pages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
+        new ButtonBuilder().setCustomId(`cart_pg:${view}:${at + 1}`).setLabel('Next ➡️').setStyle(ButtonStyle.Secondary).setDisabled(at >= pages - 1)
       )
     );
   }
