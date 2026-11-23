@@ -20,6 +20,7 @@ const {
   buildPickRow,
 } = require('./giveawayManager');
 const { giveableKeys, itemLabel, ownsItem, grantItem, applyRole } = require('./shopItems');
+const mysteryBox = require('./mysteryBox');
 
 const DAY = 24 * 60 * 60 * 1000;
 const MAX_ENTRIES = 10;
@@ -217,7 +218,7 @@ async function handlePick(interaction) {
 
   const text =
     item.type === 'box'
-      ? `✅ You opened the **${itemLabel(key)}** and got ${result.note}.`
+      ? `✅ You got a **${itemLabel(key)}**. ${(await mysteryBox.offer(interaction.client, userId)) ? 'Check your DMs to open it.' : "I couldn't DM you, so open it from `/inv`."}`
       : `✅ You got **${itemLabel(key)}**. ${tips[item.type] || ''}`;
 
   return interaction.followUp(priv(box(text.trim())));
