@@ -118,9 +118,9 @@ function grantItem(userId, key, amount = 1) {
   }
 
   if (item.type === 'box') {
-    const results = [];
-    for (let i = 0; i < amount; i += 1) results.push(openBox(userId));
-    return { ok: true, note: results.join(', ') };
+    u.boxes = (u.boxes || 0) + amount;
+    economy.touch();
+    return { ok: true, boxes: amount };
   }
 
   const field = OWNED_FIELD[item.type];
