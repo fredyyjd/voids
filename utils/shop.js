@@ -13,6 +13,7 @@ const {
   MessageFlags,
   Routes,
 } = require('discord.js');
+const mysteryBox = require('./mysteryBox');
 const economy = require('./economy');
 const { box } = require('./box');
 const { COLOR } = require('./theme');
@@ -173,6 +174,7 @@ async function purchase(interaction, key) {
     }
 
     let note = null;
+    let boxSent = null;
 
     try {
       if (item.type === 'colour') {
@@ -197,6 +199,7 @@ async function purchase(interaction, key) {
         const result = grantItem(id, key, 1);
         if (!result.ok) throw new ShopError("That item can't be bought yet.");
         note = result.note || null;
+        if (result.boxes) boxSent = await mysteryBox.offer(interaction.client, id);
       }
     } catch (err) {
       economy.addVb(id, cost);
@@ -210,7 +213,10 @@ async function purchase(interaction, key) {
       feature: [`You unlocked **${label(item)}**. The role was added to you.`],
       badge: [`You bought the **${label(item)}**.`, 'It shows next to your name in `/achievements`.'],
       pass: [`You bought a **${label(item)}**.`, 'It is used automatically the next time you count while on cooldown.'],
-      box: ['You opened a **Mystery Box** and got', `## ${note}`],
+      box: [
+        'You bought a **Mystery Box**.',
+        boxSent ? '📬 Check your DMs to open it now, or wait and open it later in `/inv`.' : "I couldn't DM you. Open it from `/inv`.",
+      ],
       entry: [
         item.amount > 1 ? `You bought an **${label(item)}** (${item.amount} entries).` : `You bought an **${label(item)}**.`,
         'Join a giveaway, press **Join** again and choose to use it.',
@@ -490,10 +496,17 @@ function invPayload(user, member, notice = null) {
 
   perkLines.push('-# Press **Join** again on a giveaway to use an extra entry.');
 
-  container
-    .addSeparatorComponents(gap())
-    .addTextDisplayComponents(text(perkLines.join('\n')))
-    .addTextDisplayComponents(text(`-# ${FOOTER}`));
+  container.addSeparatorComponents(gap()).addTextDisplayComponents(text(perkLines.join('\n')));
+
+  if ((u.boxes || 0) > 0) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(text(`📦  **Mystery Boxes:** ${u.boxes}\n-# Opens in your DMs.`))
+        .setButtonAccessory(new ButtonBuilder().setCustomId('mbox_inv').setLabel('Open').setEmoji('📦').setStyle(ButtonStyle.Success))
+    );
+  }
+
+  container.addTextDisplayComponents(text(`-# ${FOOTER}`));
 
   return { flags: MessageFlags.IsComponentsV2, components: [container], allowedMentions: NO_PINGS };
 }
