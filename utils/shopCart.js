@@ -70,7 +70,7 @@ function accessoryButton(userId, key, page) {
   if (owned) return button.setLabel('Owned').setStyle(ButtonStyle.Secondary).setDisabled(true);
   if (q && countable(key)) return button.setLabel(`In cart ×${q}`).setEmoji('🛒').setStyle(ButtonStyle.Success);
   if (q) return button.setLabel('In cart').setEmoji('✔️').setStyle(ButtonStyle.Success);
-  return button.setLabel('Add to cart').setEmoji('🛒').setStyle(ButtonStyle.Primary);
+  return button.setLabel('Add').setEmoji('🛒').setStyle(ButtonStyle.Primary);
 }
 
 function productText(key) {
@@ -167,9 +167,9 @@ function shelf(container, userId, view, title, sub, keys, page) {
   if (pages > 1) {
     container.addActionRowComponents(
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId(`cart_tab:${view}:${at - 1}`).setLabel('Back').setEmoji('⬅️').setStyle(ButtonStyle.Secondary).setDisabled(at === 0),
+        new ButtonBuilder().setCustomId(`cart_pg:${view}:${at - 1}`).setLabel('Back').setEmoji('⬅️').setStyle(ButtonStyle.Secondary).setDisabled(at === 0),
         new ButtonBuilder().setCustomId('cart_page').setLabel(`Page ${at + 1} of ${pages}`).setStyle(ButtonStyle.Secondary).setDisabled(true),
-        new ButtonBuilder().setCustomId(`cart_tab:${view}:${at + 1}`).setLabel('Next').setEmoji('➡️').setStyle(ButtonStyle.Secondary).setDisabled(at >= pages - 1)
+        new ButtonBuilder().setCustomId(`cart_pg:${view}:${at + 1}`).setLabel('Next').setEmoji('➡️').setStyle(ButtonStyle.Secondary).setDisabled(at >= pages - 1)
       )
     );
   }
@@ -185,7 +185,7 @@ function cartBody(container, userId) {
     );
     container.addActionRowComponents(
       new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('cart_tab:colours:0').setLabel('Start shopping').setEmoji('🛍️').setStyle(ButtonStyle.Primary)
+        new ButtonBuilder().setCustomId('cart_go:colours:0').setLabel('Start shopping').setEmoji('🛍️').setStyle(ButtonStyle.Primary)
       )
     );
     return;
@@ -231,7 +231,7 @@ function cartBody(container, userId) {
   container.addActionRowComponents(
     new ActionRowBuilder().addComponents(
       new ButtonBuilder().setCustomId('cart_checkout').setLabel(`Checkout  ·  ${economy.fmt(total)}`).setEmoji('✅').setStyle(ButtonStyle.Success).setDisabled(!afford),
-      new ButtonBuilder().setCustomId('cart_tab:colours:0').setLabel('Keep shopping').setEmoji('🛍️').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('cart_go:colours:0').setLabel('Keep shopping').setEmoji('🛍️').setStyle(ButtonStyle.Secondary),
       new ButtonBuilder().setCustomId('cart_clear').setLabel('Clear').setEmoji('🗑️').setStyle(ButtonStyle.Danger)
     )
   );
@@ -368,7 +368,7 @@ async function checkout(interaction) {
       container.addTextDisplayComponents(text(out.join('\n\n')));
       container.addActionRowComponents(
         new ActionRowBuilder().addComponents(
-          new ButtonBuilder().setCustomId('cart_tab:colours:0').setLabel('Back to the shop').setEmoji('🛍️').setStyle(ButtonStyle.Primary),
+          new ButtonBuilder().setCustomId('cart_go:colours:0').setLabel('Back to the shop').setEmoji('🛍️').setStyle(ButtonStyle.Primary),
           new ButtonBuilder().setCustomId('shop_inv').setLabel('My Inventory').setEmoji('🎒').setStyle(ButtonStyle.Secondary)
         )
       );
@@ -387,7 +387,7 @@ async function handle(interaction) {
   const userId = interaction.user.id;
 
   if (interaction.isButton()) {
-    if (id.startsWith('cart_tab:')) {
+    if (id.startsWith('cart_tab:') || id.startsWith('cart_go:') || id.startsWith('cart_pg:')) {
       const [, view, page] = id.split(':');
       return interaction.update(shopPayload(userId, view, null, Number(page) || 0));
     }
