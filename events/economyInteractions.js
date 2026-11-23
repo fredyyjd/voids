@@ -3,6 +3,7 @@ const shop = require('../utils/shop');
 const { box, priv } = require('../utils/box');
 const help = require('../utils/help');
 const cart = require('../utils/shopCart');
+const mysteryBox = require('../utils/mysteryBox');
 
 const EPHEMERAL = MessageFlags.Ephemeral;
 
@@ -16,6 +17,9 @@ async function handle(interaction) {
   if (isMenu && id === 'help_menu') {
     return interaction.update(help.helpPayload(interaction.values[0], interaction.member));
   }
+
+  /* ---------- mystery box ---------- */
+  if (isButton && id.startsWith('mbox_')) return mysteryBox.handle(interaction);
 
   /* ---------- shop ---------- */
   if (id.startsWith('cart_')) return cart.handle(interaction);
