@@ -70,7 +70,7 @@ function accessoryButton(userId, key, page) {
   if (owned) return button.setLabel('Owned').setStyle(ButtonStyle.Secondary).setDisabled(true);
   if (q && countable(key)) return button.setLabel(`In cart ×${q}`).setStyle(ButtonStyle.Success);
   if (q) return button.setLabel('In cart ✔️').setStyle(ButtonStyle.Success);
-  return button.setLabel('Add to cart 🛒').setStyle(ButtonStyle.Primary);
+  return button.setLabel('Add To 🛒').setStyle(ButtonStyle.Primary);
 }
 
 function productText(key) {
