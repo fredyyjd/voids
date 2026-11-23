@@ -1,5 +1,6 @@
 const economy = require('./economy');
 const { ITEMS } = require('./economyConfig');
+const { offer } = require('./mysteryBox');
 const { COUNTABLE, itemLabel, ownsItem, grantItem, applyRole } = require('./shopItems');
 
 const MAX_VB = 100;
@@ -51,7 +52,10 @@ async function giveItem({ guild, targetId, key, amount = 1 }) {
   else if (isRole) roleAdded = false;
 
   let tip = TIPS[item.type] || '';
-  if (item.type === 'box') tip = `The box was opened and they got ${result.note}.`;
+  if (item.type === 'box') {
+    const sent = await offer(guild.client, targetId);
+    tip = sent ? 'They got a DM to open it. It is also in their `/inv`.' : "I couldn't DM them. They can open it from `/inv`.";
+  }
   else if (isRole && !roleAdded) tip = 'The role could not be added. Set its role ID and check my role is above it.';
 
   return {
