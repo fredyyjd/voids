@@ -11,6 +11,7 @@ const { COLOR } = require('./theme');
 const economy = require('./economy');
 const { FOOTER: VB_FOOTER, ITEMS: SHOP_ITEMS, MAX_EXTRA_PER_GIVEAWAY } = require('./economyConfig');
 const { giveableKeys, itemLabel, grantItem, applyRole } = require('./shopItems');
+const mysteryBox = require('./mysteryBox');
 const { halfOfPrize } = require('./giveawayTotal');
 const staffStore = require('./staffStore');
 
@@ -410,7 +411,7 @@ const WHERE_TEXT = {
   feature: 'The role is on your name now.',
   badge: 'It shows next to your name in `/achievements`.',
   pass: 'It is used for you when you count while on cooldown.',
-  box: 'The box was opened for you, see below.',
+  box: 'Check your DMs to open it, or open it later from `/inv`.',
   entry: 'It is already in your inventory. Press Join again on a giveaway you are in to use it.',
 };
 
@@ -434,8 +435,9 @@ async function announceShopGiveaway(channel, messageId, giveaway) {
     for (const id of winners) {
       if (grants[id]?.refunded) {
         lines.push(`<@${id}> already owned it, so they got **${economy.fmt(grants[id].refunded)}** instead.`);
-      } else if (grants[id]?.note) {
-        lines.push(`<@${id}> opened it and got ${grants[id].note}.`);
+      } else if (grants[id]?.boxes) {
+        const sent = await mysteryBox.offer(channel.client, id);
+        if (!sent) lines.push(`<@${id}> could not be DMed, so open your Mystery Box from \`/inv\`.`);
       }
     }
 
