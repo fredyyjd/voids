@@ -20,6 +20,7 @@ const { COLOR } = require('./theme');
 const { ITEMS, FOOTER } = require('./economyConfig');
 const { ownsItem, grantItem, priceOf, visibleKeys, categoryOf, targetName, applyRole } = require('./shopItems');
 const shop = require('./shop');
+const mysteryBox = require('./mysteryBox');
 
 const BANNER = path.join(__dirname, '..', 'assets', 'voidscove-banner.png');
 const BANNER_NAME = 'voidscove-banner.png';
@@ -306,6 +307,7 @@ async function checkout(interaction) {
     const good = [];
     const bad = [];
     let refunded = 0;
+    let boxesBought = 0;
 
     const refund = (key, qty, reason) => {
       const cost = costOf(key, qty);
@@ -352,7 +354,8 @@ async function checkout(interaction) {
         if (!result.ok) throw new shop.ShopError("That item can't be bought yet.");
 
         const name = qty > 1 ? `${qty}× ${item.emoji}  **${item.name}**` : `${item.emoji}  **${item.name}**`;
-        good.push(result.note ? `${name}  →  opened and got ${result.note}` : name);
+        if (result.boxes) boxesBought += result.boxes;
+        good.push(name);
       } catch (err) {
         if (!(err instanceof shop.ShopError)) console.error('[shop] checkout failed:', err);
         refund(key, qty, err instanceof shop.ShopError ? err.message : 'Something went wrong.');
@@ -361,12 +364,17 @@ async function checkout(interaction) {
 
     cart.clear();
 
+    const boxSent = boxesBought ? await mysteryBox.offer(interaction.client, userId) : null;
+
     const paid = total - refunded;
     const out = [`## ${good.length ? '✅  Order complete' : '❌  Order failed'}`];
     if (good.length) out.push(good.join('\n'));
     if (bad.length) out.push(bad.join('\n') + '\n-# Those were refunded.');
     out.push(`**Paid:** −${economy.fmt(paid)}\n**New balance:** ${economy.fmt(economy.peek(userId).vb)}`);
     if (colours.length && good.some((l) => l.includes('colour'))) out.push('-# Swap colours any time in `/inv`.');
+    if (boxesBought) {
+      out.push(boxSent ? '📬  **Check your DMs** to open your Mystery Box now, or wait and open it later in `/inv`.' : "⚠️  I couldn't DM you. Open your Mystery Box from `/inv` instead.");
+    }
 
     const payload = frame(userId, 'receipt', null, (container) => {
       container.addTextDisplayComponents(text(out.join('\n\n')));
