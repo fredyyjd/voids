@@ -157,7 +157,7 @@ async function handleDecision(interaction) {
   const [action, id] = interaction.customId.split(':');
 
   if (!interaction.inGuild() || !canReview(interaction.member)) {
-    return interaction.reply(priv(box('❌ Only admins can accept or deny LOA.')));
+    return interaction.reply(priv(box('❌ Only high staff can accept or deny LOA.')));
   }
 
   const requests = store.get('requests') || {};
