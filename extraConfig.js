@@ -132,7 +132,7 @@ module.exports = {
     channelId: '1558837519276314725', // requests are sent here
     roleId: '1546334249114796033', // the role they get while on LOA
     maxDays: 30,
-    reviewerRoleIds: [], // extra roles that can Accept / Deny (admins always can)
+    reviewerRoleIds: ['1546692052031377568'], // roles that can Accept / Deny (admins always can)
     requesterRoleIds: [], // extra roles that can request LOA (staff roles already can)
   },
 
